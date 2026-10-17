@@ -5,10 +5,10 @@ Production-oriented, general-purpose tool-using agent backend.
 **Interface:** FastAPI backend + React/Vite frontend served from the same origin (`/`)
 **Inference:** OpenRouter free models only (OpenAI-compatible client)
 **Agent loop:** LangGraph with tools + Postgres checkpointer
-**Stack:** Python 3.12+, uv, FastAPI, LangGraph, Pydantic v2, SQLAlchemy async, asyncpg
-**Tests:** pytest; OpenRouter mocked — no real inference in CI
+**Stack:** Python 3.12+, [uv](https://docs.astral.sh/uv/), [FastAPI](https://fastapi.tiangolo.com/), [LangGraph](https://langchain-ai.github.io/langgraph/), [Pydantic](https://docs.pydantic.dev/) v2, [SQLAlchemy](https://docs.sqlalchemy.org/) async, [asyncpg](https://github.com/MagicStack/asyncpg)
+**Tests:** [pytest](https://docs.pytest.org/); OpenRouter mocked — no real inference in CI
 
-See `docs/ARCHITECTURE.md`, `docs/API.md`, `docs/DEPENDENCIES.md`, `docs/SECURITY.md`, `docs/FRONTEND.md`, `docs/RUNBOOK.md`, and `AGENTS.md`.
+See [ARCHITECTURE.md](docs/ARCHITECTURE.md), [API.md](docs/API.md), [DEPENDENCIES.md](docs/DEPENDENCIES.md), [SECURITY.md](docs/SECURITY.md), [FRONTEND.md](docs/FRONTEND.md), [RUNBOOK.md](docs/RUNBOOK.md), and [AGENTS.md](AGENTS.md).
 
 ---
 
@@ -45,13 +45,13 @@ resumed. A React/Vite UI is served from the same origin.
 
 - Python 3.12+
 - [uv](https://docs.astral.sh/uv/) (`pip install uv` or `curl -LsSf https://astral.sh/uv/install.sh | sh`)
-- PostgreSQL 14+ (local or remote)
-- Node.js 18+ (for the frontend)
+- [PostgreSQL](https://www.postgresql.org/) 14+ (local or remote)
+- [Node.js](https://nodejs.org/) 18+ (for the frontend)
 
 ### 2. Clone and install
 
 ```bash
-git clone git@github.com:noNameDS09/ai_agents.git
+git clone [git@github.com:noNameDS09/ai_agents.git](https://github.com/noNameDS09/ai_agents)
 cd ai_agents
 cp .env.example .dev.env   # edit secrets
 uv sync
@@ -71,7 +71,7 @@ tables are created by `PostgresSaver.setup()`.
 
 ```env
 API_KEY=dev-secret-key-change-me          # client API key (X-API-Key header)
-OPENROUTER_API_KEY=sk-or-your-real-key     # from https://openrouter.ai/keys
+OPENROUTER_API_KEY=sk-or-your-real-key     # from [OpenRouter Keys](https://openrouter.ai/keys)
 OPENROUTER_MODEL=nvidia/nemotron-3.5-lightning:free
 DATABASE_URL=postgresql+asyncpg://postgres@/agent_dev?host=%2Frun%2Fpostgresql
 TEST_DATABASE_URL=postgresql+asyncpg://postgres@/agent_test?host=%2Frun%2Fpostgresql
@@ -230,7 +230,7 @@ registered in the LangGraph `ToolNode` allowlist (asserted at import time).
 - **Transport:** CORS origins restricted to `CORS_ORIGINS`; trusted hosts via `TrustedHostMiddleware`; request body size capped at `MAX_REQUEST_BODY_BYTES`.
 - **Secrets:** `OPENROUTER_API_KEY` and `API_KEY` from environment only, never hardcoded. `.dev.env` is gitignored.
 
-See `docs/SECURITY.md` for the full security control documentation.
+See [docs/SECURITY.md](docs/SECURITY.md) for the full security control documentation.
 
 ---
 
@@ -265,7 +265,7 @@ src/agent_api/
 - `audit_events` — security-relevant events
 - LangGraph checkpoints in `checkpoints` / `checkpoint_blobs` / `checkpoint_writes` tables
 
-See `docs/ARCHITECTURE.md` for the full architecture documentation.
+See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for the full architecture documentation.
 
 ---
 
@@ -344,7 +344,7 @@ All settings via environment variables (`.dev.env` locally, env vars in producti
 - [ ] Add structured logging with request IDs and secret redaction
 - [ ] Add JWT/OAuth2 end-user authentication for external users
 - [ ] Build frontend (`npm run build`) before deploying
-- [ ] Set `OPENROUTER_MODEL` to a verified free model
+- [ ] Set `OPENROUTER_MODEL` to a verified free model ([OpenRouter Models](https://openrouter.ai/models))
 
 ---
 
@@ -352,13 +352,13 @@ All settings via environment variables (`.dev.env` locally, env vars in producti
 
 | Doc | Description |
 |-----|-------------|
-| `docs/ARCHITECTURE.md` | System architecture, layers, data model, deployment |
-| `docs/API.md` | Full API reference with request/response schemas |
-| `docs/DEPENDENCIES.md` | Dependency choices and governance |
-| `docs/SECURITY.md` | Security controls and boundaries |
-| `docs/FRONTEND.md` | React/Vite frontend development and deployment |
-| `docs/RUNBOOK.md` | Local dev, Postgres provisioning, troubleshooting |
-| `AGENTS.md` | Agent conventions and key entry points |
+| [ARCHITECTURE.md](docs/ARCHITECTURE.md) | System architecture, layers, data model, deployment |
+| [API.md](docs/API.md) | Full API reference with request/response schemas |
+| [DEPENDENCIES.md](docs/DEPENDENCIES.md) | Dependency choices and governance |
+| [SECURITY.md](docs/SECURITY.md) | Security controls and boundaries |
+| [FRONTEND.md](docs/FRONTEND.md) | React/Vite frontend development and deployment |
+| [RUNBOOK.md](docs/RUNBOOK.md) | Local dev, Postgres provisioning, troubleshooting |
+| [AGENTS.md](AGENTS.md) | Agent conventions and key entry points |
 
 ## License
 
