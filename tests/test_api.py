@@ -164,7 +164,15 @@ async def test_list_tools(client):
     assert resp.status_code == 200
     data = resp.json()
     names = {t["name"] for t in data["tools"]}
-    assert names == {"calculator", "current_time", "knowledge_base_lookup"}
+    assert names == {
+        "calculator", "current_time", "knowledge_base_lookup",
+        "json_format", "json_get", "text_transform", "unit_converter",
+        "base64", "hash_text", "generate_uuid", "regex_extract",
+        "math_stats", "date_diff", "random_number", "url_encode_decode",
+        "number_base_convert", "color_convert", "password_generator",
+        "jwt_decode", "word_frequency", "roman_numeral", "text_similarity",
+        "ip_validate", "csv_parse", "xml_to_json", "cron_describe",
+    }
 
 
 @pytest.mark.asyncio
