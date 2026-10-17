@@ -1,5 +1,3 @@
-import { useCallback } from "react";
-
 export function ThreadList({
   threads,
   currentThreadId,
@@ -11,32 +9,22 @@ export function ThreadList({
   onSelect: (id: string) => void;
   onNew: () => void;
 }) {
-  const handleNew = useCallback(() => {
-    onNew();
-  }, [onNew]);
+  if (threads.length === 0) {
+    return <div className="empty-state">No conversations yet.</div>;
+  }
 
   return (
-    <div className="panel">
-      <div className="panel-header">
-        <h2>Conversations</h2>
-        <button className="btn-new" onClick={handleNew}>
-          + new
-        </button>
-      </div>
-      <ul>
-        {threads.length === 0 && (
-          <li className="empty">No conversations yet.</li>
-        )}
-        {threads.map((t) => (
-          <li
-            key={t.id}
-            className={`thread ${t.id === currentThreadId ? "active" : ""}`}
-            onClick={() => onSelect(t.id)}
-          >
-            {t.id}
-          </li>
-        ))}
-      </ul>
-    </div>
+    <ul className="thread-list">
+      {threads.map((t) => (
+        <li
+          key={t.id}
+          className={`thread-item ${t.id === currentThreadId ? "active" : ""}`}
+          onClick={() => onSelect(t.id)}
+          title={t.id}
+        >
+          {t.id}
+        </li>
+      ))}
+    </ul>
   );
 }

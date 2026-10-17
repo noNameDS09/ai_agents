@@ -141,13 +141,18 @@ export default function App() {
 
   useEffect(() => {
     scrollToBottom();
-  }, [messages, currentThreadId]);
+  }, [messages, currentThreadId, loading]);
 
-  let healthText = "checking…";
-  if (healthErr) healthText = `unreachable (${healthErr})`;
+  let healthStatus = "checking…";
+  if (healthErr) healthStatus = `unreachable (${healthErr})`;
   else if (health) {
-    healthText = `${health.status} · db:${health.database} · inference:${health.inference_configured}`;
+    healthStatus = `${health.status} · db:${health.database} · inference:${health.inference_configured}`;
   }
+
+  let healthDotClass = "health-dot";
+  if (healthErr) healthDotClass += " error";
+  else if (health?.status === "ok") healthDotClass += " ok";
+  else if (health) healthDotClass += " degraded";
 
   let threadLabel: React.ReactNode;
   if (currentThreadId) {
@@ -164,22 +169,43 @@ export default function App() {
   return (
     <div className="app">
       <header className="app-header">
-        <div className="app-title">agent-api</div>
-        <div className="health-chip" title={healthText}>
-          {healthErr ? "● unreachable" : health?.status === "ok" ? "● ok" : "● degraded"}
+        <div className="app-logo">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M12 2L2 7l10 5 10-5-10-5z" />
+            <path d="M2 17l10 5 10-5" />
+            <path d="M2 12l10 5 10-5" />
+          </svg>
+          <span>agent-api</span>
+        </div>
+        <div className="app-header-right">
+          <div className="health-chip" title={healthStatus}>
+            <span className={healthDotClass} />
+            {healthErr ? "unreachable" : health?.status === "ok" ? "healthy" : "degraded"}
+          </div>
+          <ApiKeyBar
+            apiKey={apiKey}
+            setApiKeyState={setApiKeyState}
+            onValidate={loadTools}
+          />
         </div>
       </header>
 
       <div className="app-body">
         <aside className="sidebar">
-          <section className="panel">
-            <h2>Conversation</h2>
+          <section className="sidebar-section">
+            <div className="sidebar-header">
+              <h2 className="sidebar-title">Conversations</h2>
+            </div>
             <button
-              className="btn btn-new"
+              className="btn-new-thread"
               onClick={startNewThread}
               disabled={!apiKey}
             >
-              + new conversation
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <line x1="12" y1="5" x2="12" y2="19" />
+                <line x1="5" y1="12" x2="19" y2="12" />
+              </svg>
+              New conversation
             </button>
             <ThreadList
               threads={threads}
@@ -188,33 +214,61 @@ export default function App() {
               onNew={startNewThread}
             />
           </section>
-          <section className="panel">
-            <h2>Tools</h2>
-            {toolsErr && <div className="err">{toolsErr}</div>}
+          <section className="sidebar-section grow">
+            <div className="sidebar-header">
+              <h2 className="sidebar-title">Tools</h2>
+            </div>
+            {toolsErr && <div className="error-banner">{toolsErr}</div>}
             <ToolsPanel tools={tools} />
           </section>
         </aside>
 
         <main className="main">
           <div className="toolbar">
-            <ApiKeyBar
-              apiKey={apiKey}
-              setApiKeyState={setApiKeyState}
-              onValidate={loadTools}
-            />
-            <div className="thread-id">{threadLabel}</div>
+            <div className="thread-id-display">{threadLabel}</div>
           </div>
 
           <div className="messages-wrap" ref={scrollRef}>
-            <MessageList messages={messages} currentThreadId={currentThreadId} />
-            {error && <div className="err">{error}</div>}
+            {messages.length === 0 && !loading ? (
+              <div className="empty-state-main">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+                </svg>
+                <h3>Start a conversation</h3>
+                <p>
+                  {apiKey
+                    ? "Ask anything — the agent can use tools like calculator, time, and knowledge base."
+                    : "Enter your API key above to get started."}
+                </p>
+              </div>
+            ) : (
+              <>
+                <MessageList messages={messages} currentThreadId={currentThreadId} />
+                {loading && (
+                  <div className="typing-indicator">
+                    <span />
+                    <span />
+                    <span />
+                  </div>
+                )}
+              </>
+            )}
+            {error && <div className="error-banner">{error}</div>}
           </div>
 
           <Composer onSend={handleSend} disabled={loading || !apiKey} />
         </main>
       </div>
 
-      <footer className="app-footer">{healthText}</footer>
+      <footer className="app-footer">
+        <span>{healthStatus}</span>
+        {currentThreadId && (
+          <>
+            <span>·</span>
+            <span>{messages.length} messages</span>
+          </>
+        )}
+      </footer>
     </div>
   );
 }
