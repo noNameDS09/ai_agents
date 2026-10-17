@@ -21,10 +21,8 @@ log are stored in PostgreSQL.
 |  Routers   |  - app_messages (audit)     |  - checkpoints  |
 |  Service   |  - audit_events             |  - checkpoints  |
 |  Graph     |                             +---------------+
-|  Tools     |  calculator, current_time, KB lookup, |
-|           |  json_format, text_transform, unit_converter, |
-|           |  base64, hash_text, generate_uuid, regex_extract, |
-|           |  math_stats, date_diff, random_number |
+|  Tools     |  26 local + 5 Tavily MCP (web_search, url_extract, |
+|           |  web_crawl, web_map, web_research) |
 |  Static    |  - frontend/dist/index.html (SPA)     |
 |  Files     |  - frontend/dist/assets/* (JS/CSS)    |
 +------------+

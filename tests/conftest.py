@@ -24,6 +24,8 @@ os.environ.setdefault("RATE_LIMIT_REQUESTS", "10000")
 os.environ.setdefault("RATE_LIMIT_WINDOW_SECONDS", "60")
 os.environ.setdefault("MAX_MESSAGE_LENGTH", "4000")
 os.environ.setdefault("MAX_REQUEST_BODY_BYTES", "262144")
+os.environ.setdefault("TAVILY_API_KEY", "tvly-test-placeholder")
+os.environ.setdefault("TAVILY_MCP_URL", "https://mcp.tavily.com/mcp/")
 
 from typing import AsyncIterator  # noqa: E402
 

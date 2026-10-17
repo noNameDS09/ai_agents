@@ -20,6 +20,11 @@ from agent_api.tools import (
     RegexExtractArgs,
     TextTransformArgs,
     UnitConverterArgs,
+    UrlExtractArgs,
+    WebCrawlArgs,
+    WebMapArgs,
+    WebResearchArgs,
+    WebSearchArgs,
     TOOL_NAMES,
     base64_encode_decode,
     calculator,
@@ -34,11 +39,16 @@ from agent_api.tools import (
     regex_extract,
     text_transform,
     unit_converter,
+    url_extract,
+    web_crawl,
+    web_map,
+    web_research,
+    web_search,
 )
 
 
 def test_tool_allowlist_names():
-    assert len(TOOL_NAMES) == 26
+    assert len(TOOL_NAMES) == 31
     expected = {
         "calculator", "current_time", "knowledge_base_lookup",
         "json_format", "json_get", "text_transform", "unit_converter",
@@ -47,6 +57,7 @@ def test_tool_allowlist_names():
         "number_base_convert", "color_convert", "password_generator",
         "jwt_decode", "word_frequency", "roman_numeral", "text_similarity",
         "ip_validate", "csv_parse", "xml_to_json", "cron_describe",
+        "web_search", "url_extract", "web_crawl", "web_map", "web_research",
     }
     assert TOOL_NAMES == expected
 
@@ -220,3 +231,54 @@ def test_random_number():
 def test_random_number_error():
     result = random_number(RandomNumberArgs(min_val=10, max_val=1, count=1))
     assert result.startswith("random_number error")
+
+
+# ---------------------------------------------------------------------------
+# Tavily MCP tools (mocked — no real network calls)
+# ---------------------------------------------------------------------------
+
+from unittest.mock import patch
+
+
+def test_web_search_no_api_key():
+    """web_search returns error when TAVILY_API_KEY is empty."""
+    from agent_api import config
+    original = config.settings.tavily_api_key
+    config.settings.tavily_api_key = ""
+    try:
+        result = web_search(WebSearchArgs(query="test"))
+        assert result.startswith("tavily error")
+        assert "TAVILY_API_KEY" in result
+    finally:
+        config.settings.tavily_api_key = original
+
+
+def test_web_search_mocked():
+    with patch("agent_api.tavily_mcp.tavily_search_sync", return_value='{"results": [{"title": "Test", "url": "https://example.com", "content": "test content"}]}'):
+        result = web_search(WebSearchArgs(query="python"))
+        assert "Test" in result
+        assert "example.com" in result
+
+
+def test_url_extract_mocked():
+    with patch("agent_api.tavily_mcp.tavily_extract_sync", return_value='{"results": [{"url": "https://example.com", "raw_content": "extracted text"}]}'):
+        result = url_extract(UrlExtractArgs(urls=["https://example.com"]))
+        assert "extracted text" in result
+
+
+def test_web_crawl_mocked():
+    with patch("agent_api.tavily_mcp.tavily_crawl_sync", return_value='{"results": [{"url": "https://example.com/page1", "raw_content": "page content"}]}'):
+        result = web_crawl(WebCrawlArgs(url="https://example.com"))
+        assert "page content" in result
+
+
+def test_web_map_mocked():
+    with patch("agent_api.tavily_mcp.tavily_map_sync", return_value='{"urls": ["https://example.com", "https://example.com/about"]}'):
+        result = web_map(WebMapArgs(url="https://example.com"))
+        assert "example.com" in result
+
+
+def test_web_research_mocked():
+    with patch("agent_api.tavily_mcp.tavily_research_sync", return_value='{"answer": "Research summary here", "sources": []}'):
+        result = web_research(WebResearchArgs(query="AI trends"))
+        assert "Research summary" in result

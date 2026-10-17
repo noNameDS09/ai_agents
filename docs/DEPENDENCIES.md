@@ -13,6 +13,7 @@
 | `langgraph-checkpoint-postgres` | Postgres checkpointer | Durable per-thread conversation state (production-grade) |
 | `sqlalchemy[asyncio]` + `asyncpg` | App database (audit/history) | Async ORM + native PostgreSQL driver; non-blocking I/O |
 | `python-dotenv` | Local env loading | Loads `.dev.env` for development (not used in production) |
+| `mcp` | MCP client SDK | Connects to remote Tavily MCP server for web search/extraction |
 
 Free inference only: `langchain-openai` talks to
 `https://openrouter.ai/api/v1`. `OPENROUTER_MODEL` defaults to

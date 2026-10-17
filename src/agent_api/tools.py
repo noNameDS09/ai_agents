@@ -156,6 +156,41 @@ class CronDescribeArgs(BaseModel):
 
 
 # ---------------------------------------------------------------------------
+# Tavily MCP tools (service-backed, require TAVILY_API_KEY)
+# ---------------------------------------------------------------------------
+
+class WebSearchArgs(BaseModel):
+    query: str = Field(..., description="Search query for the web")
+    search_depth: str = Field("basic", description="Search depth: 'basic' or 'advanced'")
+    max_results: int = Field(5, ge=1, le=20, description="Maximum number of results (1-20)")
+    topic: str = Field("general", description="Topic: 'general' or 'news'")
+    include_answer: bool = Field(True, description="Include an AI-generated answer summary")
+
+
+class UrlExtractArgs(BaseModel):
+    urls: list[str] = Field(..., description="List of URLs to extract content from")
+    extract_depth: str = Field("basic", description="Extraction depth: 'basic' or 'advanced'")
+    include_images: bool = Field(False, description="Include images in extraction")
+
+
+class WebCrawlArgs(BaseModel):
+    url: str = Field(..., description="Starting URL to crawl")
+    max_depth: int = Field(1, ge=1, le=3, description="Maximum crawl depth (1-3)")
+    max_breadth: int = Field(20, ge=1, le=50, description="Maximum breadth per level")
+    limit: int = Field(50, ge=1, le=100, description="Maximum pages to crawl")
+
+
+class WebMapArgs(BaseModel):
+    url: str = Field(..., description="Starting URL to map")
+    max_depth: int = Field(1, ge=1, le=3, description="Maximum map depth (1-3)")
+
+
+class WebResearchArgs(BaseModel):
+    query: str = Field(..., description="Research question or topic")
+    model: str = Field("auto", description="Research model: 'auto', 'fast', or 'pro'")
+
+
+# ---------------------------------------------------------------------------
 # Implementations
 # ---------------------------------------------------------------------------
 
@@ -660,6 +695,60 @@ def cron_describe(args: CronDescribeArgs) -> str:
 
 
 # ---------------------------------------------------------------------------
+# Tavily MCP tools (service-backed)
+# ---------------------------------------------------------------------------
+
+def web_search(args: WebSearchArgs) -> str:
+    """Search the web via Tavily MCP and return results with titles, URLs, and snippets."""
+    from .tavily_mcp import tavily_search_sync
+
+    return tavily_search_sync(
+        query=args.query,
+        search_depth=args.search_depth,
+        max_results=args.max_results,
+        topic=args.topic,
+        include_answer=args.include_answer,
+    )
+
+
+def url_extract(args: UrlExtractArgs) -> str:
+    """Extract clean content from one or more URLs via Tavily MCP."""
+    from .tavily_mcp import tavily_extract_sync
+
+    return tavily_extract_sync(
+        urls=args.urls,
+        extract_depth=args.extract_depth,
+        include_images=args.include_images,
+    )
+
+
+def web_crawl(args: WebCrawlArgs) -> str:
+    """Crawl a website starting from a URL via Tavily MCP."""
+    from .tavily_mcp import tavily_crawl_sync
+
+    return tavily_crawl_sync(
+        url=args.url,
+        max_depth=args.max_depth,
+        max_breadth=args.max_breadth,
+        limit=args.limit,
+    )
+
+
+def web_map(args: WebMapArgs) -> str:
+    """Map a website's URL structure via Tavily MCP."""
+    from .tavily_mcp import tavily_map_sync
+
+    return tavily_map_sync(url=args.url, max_depth=args.max_depth)
+
+
+def web_research(args: WebResearchArgs) -> str:
+    """Perform comprehensive multi-source research via Tavily MCP."""
+    from .tavily_mcp import tavily_research_sync
+
+    return tavily_research_sync(query=args.query, model=args.model)
+
+
+# ---------------------------------------------------------------------------
 # Registry
 # ---------------------------------------------------------------------------
 
@@ -698,6 +787,12 @@ TOOL_REGISTRY: dict[str, tuple[type[BaseModel], Any]] = {
     "ip_validate": (IpValidateArgs, ip_validate),
     # Color
     "color_convert": (ColorConvertArgs, color_convert),
+    # Web / Tavily MCP (service-backed)
+    "web_search": (WebSearchArgs, web_search),
+    "url_extract": (UrlExtractArgs, url_extract),
+    "web_crawl": (WebCrawlArgs, web_crawl),
+    "web_map": (WebMapArgs, web_map),
+    "web_research": (WebResearchArgs, web_research),
 }
 
 TOOL_NAMES = frozenset(TOOL_REGISTRY)
@@ -710,6 +805,7 @@ __all__ = [
     "NumberBaseArgs", "ColorConvertArgs", "PasswordGenArgs", "JwtDecodeArgs",
     "WordFrequencyArgs", "RomanNumeralArgs", "TextSimilarityArgs",
     "IpValidateArgs", "CsvParseArgs", "XmlToJsonArgs", "CronDescribeArgs",
+    "WebSearchArgs", "UrlExtractArgs", "WebCrawlArgs", "WebMapArgs", "WebResearchArgs",
     "calculator", "current_time", "knowledge_base_lookup",
     "json_format", "json_get", "text_transform", "unit_converter",
     "base64_encode_decode", "hash_text", "generate_uuid", "regex_extract",
@@ -717,5 +813,6 @@ __all__ = [
     "number_base_convert", "color_convert", "password_generator",
     "jwt_decode", "word_frequency", "roman_numeral", "text_similarity",
     "ip_validate", "csv_parse", "xml_to_json", "cron_describe",
+    "web_search", "url_extract", "web_crawl", "web_map", "web_research",
     "TOOL_REGISTRY", "TOOL_NAMES",
 ]

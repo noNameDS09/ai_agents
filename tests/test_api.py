@@ -172,6 +172,7 @@ async def test_list_tools(client):
         "number_base_convert", "color_convert", "password_generator",
         "jwt_decode", "word_frequency", "roman_numeral", "text_similarity",
         "ip_validate", "csv_parse", "xml_to_json", "cron_describe",
+        "web_search", "url_extract", "web_crawl", "web_map", "web_research",
     }
 
 

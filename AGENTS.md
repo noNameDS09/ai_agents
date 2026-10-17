@@ -10,6 +10,7 @@ A simple, production-oriented, general-purpose tool-using agent backend:
 - **Agent loop:** LangGraph state graph with a tool node (ReAct-style)
 - **State/audit:** PostgreSQL (LangGraph checkpointer + app audit tables)
 - **Stack:** Python 3.12+, `uv`, FastAPI, LangGraph, Pydantic v2, SQLAlchemy 2 async, asyncpg; frontend: React + Vite + TypeScript
+- **Web search:** Tavily MCP (remote, service-backed) — web_search, url_extract, web_crawl, web_map, web_research
 - **Quality:** automated tests (pytest), security controls (API keys, rate limiting, CORS, input validation, tool allowlist)
 
 ## Repository layout

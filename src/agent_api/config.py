@@ -41,6 +41,15 @@ class Settings(BaseSettings):
     openrouter_http_referer: str = "http://localhost:8000"
     openrouter_x_title: str = "agent-api"
 
+    # Tavily (MCP-based web search / extraction)
+    tavily_api_key: str = Field(
+        "", description="Tavily API key. Web search tools return an error when unset."
+    )
+    tavily_mcp_url: str = Field(
+        "https://mcp.tavily.com/mcp/",
+        description="Tavily MCP server URL (remote). API key appended as query param.",
+    )
+
     # Database
     database_url: str
     test_database_url: str | None = None

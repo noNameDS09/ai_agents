@@ -6,7 +6,7 @@ Production-oriented, general-purpose tool-using agent backend.
 **Inference:** OpenRouter free models only (OpenAI-compatible client)
 **Agent loop:** LangGraph with tools + Postgres checkpointer
 **Stack:** Python 3.12+, [uv](https://docs.astral.sh/uv/), [FastAPI](https://fastapi.tiangolo.com/), [LangGraph](https://langchain-ai.github.io/langgraph/), [Pydantic](https://docs.pydantic.dev/) v2, [SQLAlchemy](https://docs.sqlalchemy.org/) async, [asyncpg](https://github.com/MagicStack/asyncpg)
-**Tests:** [pytest](https://docs.pytest.org/); OpenRouter mocked — no real inference in CI
+**Tests:** [pytest](https://docs.pytest.org/) (57 tests); OpenRouter mocked — no real inference in CI
 
 See [ARCHITECTURE.md](docs/ARCHITECTURE.md), [API.md](docs/API.md), [DEPENDENCIES.md](docs/DEPENDENCIES.md), [SECURITY.md](docs/SECURITY.md), [FRONTEND.md](docs/FRONTEND.md), [RUNBOOK.md](docs/RUNBOOK.md), and [AGENTS.md](AGENTS.md).
 
@@ -15,7 +15,7 @@ See [ARCHITECTURE.md](docs/ARCHITECTURE.md), [API.md](docs/API.md), [DEPENDENCIE
 ## What it does
 
 `agent-api` is a self-hosted, tool-using AI agent. You send it a message; it decides
-whether to answer directly or call one of its 26 built-in tools, then returns the
+whether to answer directly or call one of its 31 built-in tools, then returns the
 final answer. Conversation state is persisted in PostgreSQL so threads can be
 resumed. A React/Vite UI is served from the same origin.
 
@@ -216,8 +216,22 @@ Returns `503` when database or inference configuration is missing.
 |------|-------------|
 | `color_convert` | Convert between hex, RGB, and HSL color formats |
 
-All tools are deterministic, local (no outbound network), Pydantic-validated, and
-registered in the LangGraph `ToolNode` allowlist (asserted at import time).
+### Web & Research (5) — Tavily MCP (service-backed)
+
+| Tool | Description |
+|------|-------------|
+| `web_search` | Search the web for current information (Tavily MCP) |
+| `url_extract` | Extract clean content from one or more URLs |
+| `web_crawl` | Crawl a website starting from a URL |
+| `web_map` | Map a website's URL structure |
+| `web_research` | Comprehensive multi-source research with citations |
+
+These 5 tools are **service-backed** — they call the Tavily MCP server over HTTPS.
+They require `TAVILY_API_KEY` in the environment. All other 26 tools are
+deterministic and local (no outbound network).
+
+All tools are Pydantic-validated and registered in the LangGraph `ToolNode`
+allowlist (asserted at import time).
 
 ---
 
@@ -322,6 +336,8 @@ All settings via environment variables (`.dev.env` locally, env vars in producti
 | `OPENROUTER_API_KEY` | `""` | OpenRouter API key (chat returns 503 when unset) |
 | `OPENROUTER_MODEL` | `nvidia/nemotron-3.5-lightning:free` | Must be a free OpenRouter model |
 | `OPENROUTER_BASE_URL` | `https://openrouter.ai/api/v1` | OpenRouter API base URL |
+| `TAVILY_API_KEY` | `""` | Tavily API key (web search tools return error when unset) |
+| `TAVILY_MCP_URL` | `https://mcp.tavily.com/mcp/` | Tavily MCP server URL |
 | `DATABASE_URL` | (required) | PostgreSQL asyncpg DSN |
 | `TEST_DATABASE_URL` | (optional) | Test database DSN |
 | `CORS_ORIGINS` | `["*"]` | Allowed CORS origins (JSON array) |

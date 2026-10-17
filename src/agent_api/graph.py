@@ -48,6 +48,11 @@ from .tools import (
     csv_parse as csv_impl,
     xml_to_json as xml_impl,
     cron_describe as cron_impl,
+    web_search as websearch_impl,
+    url_extract as urlextract_impl,
+    web_crawl as webcrawl_impl,
+    web_map as webmap_impl,
+    web_research as webresearch_impl,
 )
 
 logger = logging.getLogger("agent-api.graph")
@@ -228,6 +233,36 @@ def cron_describe(expression: str) -> str:
     return cron_impl(__import_agent_args("cron_describe", expression=expression))
 
 
+@lc_tool
+def web_search(query: str, search_depth: str = "basic", max_results: int = 5, topic: str = "general", include_answer: bool = True) -> str:
+    """Search the web for current information on any topic. Returns titles, URLs, and content snippets."""
+    return websearch_impl(__import_agent_args("web_search", query=query, search_depth=search_depth, max_results=max_results, topic=topic, include_answer=include_answer))
+
+
+@lc_tool
+def url_extract(urls: list[str], extract_depth: str = "basic", include_images: bool = False) -> str:
+    """Extract clean content from one or more URLs. Returns readable text from web pages."""
+    return urlextract_impl(__import_agent_args("url_extract", urls=urls, extract_depth=extract_depth, include_images=include_images))
+
+
+@lc_tool
+def web_crawl(url: str, max_depth: int = 1, max_breadth: int = 20, limit: int = 50) -> str:
+    """Crawl a website starting from a URL. Extracts content from multiple pages."""
+    return webcrawl_impl(__import_agent_args("web_crawl", url=url, max_depth=max_depth, max_breadth=max_breadth, limit=limit))
+
+
+@lc_tool
+def web_map(url: str, max_depth: int = 1) -> str:
+    """Map a website's URL structure. Returns a list of discovered URLs."""
+    return webmap_impl(__import_agent_args("web_map", url=url, max_depth=max_depth))
+
+
+@lc_tool
+def web_research(query: str, model: str = "auto") -> str:
+    """Perform comprehensive multi-source research on a topic. Returns a cited report."""
+    return webresearch_impl(__import_agent_args("web_research", query=query, model=model))
+
+
 _LC_TOOLS = [
     calculator, current_time, knowledge_base_lookup,
     json_format, json_get, text_transform, unit_converter, base64, hash_text,
@@ -235,6 +270,7 @@ _LC_TOOLS = [
     url_encode_decode, number_base_convert, color_convert, password_generator,
     jwt_decode, word_frequency, roman_numeral, text_similarity, ip_validate,
     csv_parse, xml_to_json, cron_describe,
+    web_search, url_extract, web_crawl, web_map, web_research,
 ]
 
 # Safety: the LangChain tool names must match the allowlisted tool names.
