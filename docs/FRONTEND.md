@@ -23,6 +23,20 @@ frontend/
   dist/               # built output (gitignored, served by FastAPI)
 ```
 
+## Markdown rendering
+
+Assistant responses are rendered as Markdown (GitHub Flavored Markdown via
+`react-markdown` + `remark-gfm`). This includes:
+
+- **Tables** — rendered as styled HTML tables
+- **Code blocks** — syntax-highlighted monospace with dark background
+- **Inline code** — monospace with subtle background
+- **Lists, headings, links, blockquotes, horizontal rules**
+- **Task lists** (checkboxes) from GFM
+
+The backend appends a citation line (`_(tool called: ...)_`) to responses that
+used tools, which renders as italic muted text at the end of the message.
+
 ## Development (two servers)
 
 Run both the backend and the Vite dev server simultaneously for hot-reload:

@@ -1,3 +1,6 @@
+import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
+
 export function MessageList({
   messages,
   currentThreadId,
@@ -17,7 +20,15 @@ export function MessageList({
           <div className="msg-role">
             {m.role === "user" ? "You" : "Assistant"}
           </div>
-          <div className="msg-content">{m.content}</div>
+          <div className="msg-content">
+            {m.role === "assistant" ? (
+              <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                {m.content}
+              </ReactMarkdown>
+            ) : (
+              <span style={{ whiteSpace: "pre-wrap" }}>{m.content}</span>
+            )}
+          </div>
           {m.tool_calls && m.tool_calls.length > 0 && (
             <div className="msg-tools">
               {m.tool_calls.map((tc, j) => (
