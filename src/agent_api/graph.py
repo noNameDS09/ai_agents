@@ -234,9 +234,9 @@ def cron_describe(expression: str) -> str:
 
 
 @lc_tool
-def web_search(query: str, search_depth: str = "basic", max_results: int = 5, topic: str = "general", include_answer: bool = True) -> str:
+def web_search(query: str, search_depth: str = "basic", max_results: int = 5, topic: str = "general") -> str:
     """Search the web for current information on any topic. Returns titles, URLs, and content snippets."""
-    return websearch_impl(__import_agent_args("web_search", query=query, search_depth=search_depth, max_results=max_results, topic=topic, include_answer=include_answer))
+    return websearch_impl(__import_agent_args("web_search", query=query, search_depth=search_depth, max_results=max_results, topic=topic))
 
 
 @lc_tool

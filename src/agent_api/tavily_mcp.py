@@ -62,7 +62,6 @@ async def tavily_search_async(
     search_depth: str = _DEFAULT_SEARCH_DEPTH,
     max_results: int = _DEFAULT_MAX_RESULTS,
     topic: str = "general",
-    include_answer: bool = True,
     include_raw_content: bool = False,
 ) -> str:
     """Search the web via Tavily MCP and return formatted results."""
@@ -71,7 +70,6 @@ async def tavily_search_async(
         "search_depth": search_depth,
         "max_results": max_results,
         "topic": topic,
-        "include_answer": include_answer,
         "include_raw_content": include_raw_content,
     }
     return await _call_mcp_tool("tavily_search", args)

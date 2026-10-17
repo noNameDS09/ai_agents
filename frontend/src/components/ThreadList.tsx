@@ -2,12 +2,10 @@ export function ThreadList({
   threads,
   currentThreadId,
   onSelect,
-  onNew,
 }: {
   threads: Array<{ id: string }>;
   currentThreadId: string | null;
   onSelect: (id: string) => void;
-  onNew: () => void;
 }) {
   if (threads.length === 0) {
     return <div className="empty-state">No conversations yet.</div>;

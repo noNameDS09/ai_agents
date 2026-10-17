@@ -211,7 +211,6 @@ export default function App() {
               threads={threads}
               currentThreadId={currentThreadId}
               onSelect={selectThread}
-              onNew={startNewThread}
             />
           </section>
           <section className="sidebar-section grow">
@@ -243,7 +242,7 @@ export default function App() {
               </div>
             ) : (
               <>
-                <MessageList messages={messages} currentThreadId={currentThreadId} />
+                <MessageList messages={messages} />
                 {loading && (
                   <div className="typing-indicator">
                     <span />

@@ -3,7 +3,6 @@ import remarkGfm from "remark-gfm";
 
 export function MessageList({
   messages,
-  currentThreadId,
 }: {
   messages: Array<{
     role: "user" | "assistant";
@@ -11,7 +10,6 @@ export function MessageList({
     tool_calls?: Array<{ name: string; arguments: unknown }> | null;
     created_at?: string | null;
   }>;
-  currentThreadId: string | null;
 }) {
   return (
     <>

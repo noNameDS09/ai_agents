@@ -164,7 +164,6 @@ class WebSearchArgs(BaseModel):
     search_depth: str = Field("basic", description="Search depth: 'basic' or 'advanced'")
     max_results: int = Field(5, ge=1, le=20, description="Maximum number of results (1-20)")
     topic: str = Field("general", description="Topic: 'general' or 'news'")
-    include_answer: bool = Field(True, description="Include an AI-generated answer summary")
 
 
 class UrlExtractArgs(BaseModel):
@@ -707,7 +706,6 @@ def web_search(args: WebSearchArgs) -> str:
         search_depth=args.search_depth,
         max_results=args.max_results,
         topic=args.topic,
-        include_answer=args.include_answer,
     )
 
 
