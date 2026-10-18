@@ -10,6 +10,13 @@ Production-oriented, general-purpose tool-using agent backend.
 
 See [ARCHITECTURE.md](docs/ARCHITECTURE.md), [API.md](docs/API.md), [DEPENDENCIES.md](docs/DEPENDENCIES.md), [SECURITY.md](docs/SECURITY.md), [FRONTEND.md](docs/FRONTEND.md), [RUNBOOK.md](docs/RUNBOOK.md), and [AGENTS.md](AGENTS.md).
 
+### ComplianceOS
+
+A domain application for AI-native financial compliance (multi-agent, RAG, audit
+trail). See [docs/ai-compliance/](docs/ai-compliance/) for the full plan,
+architecture, data model, trust model, agent contracts, API, rules engine,
+evaluation, and runbook.
+
 ---
 
 ## What it does

@@ -72,4 +72,10 @@ The checkpointer is synchronous (psycopg-based), so graph execution is wrapped i
 
 - Single-node FastAPI behind a reverse proxy (TLS termination).
 - Rate limiter is in-memory (per-process); scale horizontally requires replacing it with Redis-backed limiting.
-- No frontend: callers are scripts, other services, or a future SPA (CORS must be explicitly configured for any origin).
+- Frontend: React/Vite SPA served from the same origin.
+
+## ComplianceOS
+
+A domain application built on top of `agent-api` for financial compliance.
+See [docs/ai-compliance/](ai-compliance/) for the full architecture, data model,
+trust model, agent contracts, API reference, rules engine, evaluation, and runbook.
