@@ -14,7 +14,7 @@ from .base import ComplianceBase
 
 
 class AuditEvent(ComplianceBase):
-    __tablename__ = "audit_events"
+    __tablename__ = "compliance_audit_events"
 
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     org_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), nullable=False)

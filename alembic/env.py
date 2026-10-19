@@ -27,10 +27,10 @@ if config.config_file_name is not None:
 # Combine both Base metadata for autogenerate
 target_metadata = [AgentBase.metadata, ComplianceBase.metadata]
 
-# Allow DATABASE_URL override from env
+# Allow DATABASE_URL override from env (escape % for configparser interpolation)
 database_url = os.environ.get("DATABASE_URL")
 if database_url:
-    config.set_main_option("sqlalchemy.url", database_url)
+    config.set_main_option("sqlalchemy.url", database_url.replace("%", "%%"))
 
 
 def run_migrations_offline() -> None:
@@ -46,8 +46,14 @@ def run_migrations_offline() -> None:
         context.run_migrations()
 
 
+def include_object(object, name, type_, reflected, compare_to):
+    """Exclude LangGraph checkpoint tables from autogenerate."""
+    if type_ == "table" and name.startswith("checkpoint"):
+        return False
+    return True
+
 def do_run_migrations(connection: Connection) -> None:
-    context.configure(connection=connection, target_metadata=target_metadata)
+    context.configure(connection=connection, target_metadata=target_metadata, include_object=include_object)
     with context.begin_transaction():
         context.run_migrations()
 
