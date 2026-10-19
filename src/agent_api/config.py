@@ -12,7 +12,7 @@ import os
 from typing import Annotated
 
 from pydantic import Field, computed_field, field_validator
-from pydantic_settings import BaseSettings
+from pydantic_settings import BaseSettings, NoDecode
 
 logger = logging.getLogger("agent-api.config")
 
@@ -54,9 +54,9 @@ class Settings(BaseSettings):
     database_url: str
     test_database_url: str | None = None
 
-    # Security / transport
-    cors_origins: list[str] = ["*"]
-    trusted_hosts: list[str] = ["localhost", "127.0.0.1"]
+    # Security / transport (NoDecode: let our validator handle JSON/comma parsing)
+    cors_origins: Annotated[list[str], NoDecode] = ["*"]
+    trusted_hosts: Annotated[list[str], NoDecode] = ["localhost", "127.0.0.1"]
     rate_limit_requests: int = Field(60, ge=1)
     rate_limit_window_seconds: int = Field(60, ge=1)
     max_request_body_bytes: int = Field(262144, ge=1)
