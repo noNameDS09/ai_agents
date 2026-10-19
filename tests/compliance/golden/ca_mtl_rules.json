@@ -1,0 +1,25 @@
+{
+  "jurisdiction": "US-CA",
+  "license_type": "MTL",
+  "rule": {
+    "jurisdiction_id": "US-CA",
+    "license_type": "MTL",
+    "renewal_window_days": 90,
+    "grace_period_days": 30,
+    "escalation_ladder": [
+      {"days_before": 60, "level": 0, "channels": ["email"]},
+      {"days_before": 30, "level": 1, "channels": ["email", "slack"]},
+      {"days_before": 14, "level": 2, "channels": ["email", "slack", "sms"]},
+      {"days_before": 7, "level": 3, "channels": ["email", "slack", "sms", "phone"]}
+    ],
+    "business_day_adjustment": true,
+    "effective_from": "2026-01-01",
+    "effective_to": null
+  },
+  "test_cases": [
+    {"now": "2026-01-01", "expires": "2026-06-15", "expected_deadline": "2026-03-17", "description": "90 days before expiry"},
+    {"now": "2026-05-01", "expires": "2026-06-15", "expected_deadline": "2026-06-15", "description": "within renewal window"},
+    {"now": "2026-06-20", "expires": "2026-06-15", "expected_deadline": "2026-07-15", "description": "within grace period"},
+    {"now": "2026-08-01", "expires": "2026-06-15", "expected_deadline": "2026-07-15", "description": "past grace period (overdue)"}
+  ]
+}

@@ -66,11 +66,16 @@ def business_day_adjust(d: date, holidays: set[date] | None = None) -> date:
     return d
 
 
-def compute_escalation_level(days_overdue: int, ladder: list[dict]) -> int:
-    """Determine escalation level based on days overdue and the escalation ladder."""
+def compute_escalation_level(days_before_deadline: int, ladder: list[dict]) -> int:
+    """Determine escalation level based on days remaining before deadline.
+
+    As the deadline approaches, escalation increases. Returns the level of the
+    most urgent threshold that has been reached (days_before_deadline <= threshold).
+    If days_before_deadline exceeds all thresholds, returns level 0.
+    """
     level = 0
     for entry in sorted(ladder, key=lambda x: x.get("days_before", 0), reverse=True):
-        if days_overdue >= entry.get("days_before", 0):
+        if days_before_deadline <= entry.get("days_before", 0):
             level = max(level, entry.get("level", 0))
     return level
 

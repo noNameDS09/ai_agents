@@ -19,6 +19,13 @@ from .config import settings
 from .database import init_db
 from .service.agent import AgentService, get_service
 
+# Compliance domain (optional — only if compliance module is available)
+try:
+    from compliance.api import router as compliance_router
+    _HAS_COMPLIANCE = True
+except ImportError:
+    _HAS_COMPLIANCE = False
+
 
 class HealthResponse(BaseModel):
     status: str
@@ -79,6 +86,9 @@ def create_app() -> FastAPI:
 
     app.include_router(chat_router.router, prefix="/v1")
     app.include_router(tools_router.router, prefix="/v1")
+
+    if _HAS_COMPLIANCE:
+        app.include_router(compliance_router)
 
     # Serve the React/Vite frontend (same origin, no CORS needed for the UI).
     # Built with `npm run build` (or `vite build`) into frontend/dist.
