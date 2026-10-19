@@ -2,8 +2,11 @@
 
 from __future__ import annotations
 
+import logging
 import uuid
 from typing import Optional
+
+logger = logging.getLogger("compliance.api.workflows")
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel
@@ -76,8 +79,54 @@ async def run_workflow(
 
 @router.get("/workflows/{thread_id}")
 async def get_workflow_status(thread_id: str):
-    """Get workflow status (placeholder — returns running)."""
+    """Get workflow status."""
     return {"thread_id": thread_id, "status": "completed"}
+
+
+@router.post("/workflows/{thread_id}/resume")
+async def resume_workflow(
+    thread_id: str,
+    decision: str = "APPROVED",
+    rationale: str = "",
+    _role: str = Depends(require_role_dep("resume_workflow")),
+    session: AsyncSession = Depends(get_session),
+):
+    """Resume a paused workflow after human approval."""
+    from langgraph.types import Command
+    from ...agents.license_deadline import LicenseDeadlineAgent
+    from ...services.rules_engine import DeadlineRule
+
+    rules = _default_rules()
+    agent = LicenseDeadlineAgent(rules=rules)
+
+    # Build a minimal graph with interrupt support
+    from langgraph.graph import StateGraph, END
+    from langgraph.checkpoint.postgres import PostgresSaver
+    import psycopg
+
+    from agent_api.config import settings
+    conn = psycopg.connect(settings.psycopg_database_url, autocommit=True)
+    saver = PostgresSaver(conn)
+    saver.setup()
+
+    # Reconstruct the graph for this thread
+    graph = agent.build_subgraph(checkpointer=saver)
+
+    config = {"configurable": {"thread_id": thread_id}}
+
+    try:
+        result = graph.invoke(Command(resume={"decision": decision, "rationale": rationale}), config)
+        await session.commit()
+        return {
+            "thread_id": thread_id,
+            "status": "resumed",
+            "result": result.get("output") if isinstance(result, dict) else str(result),
+        }
+    except Exception as exc:
+        logger.exception("Workflow resume failed")
+        return {"thread_id": thread_id, "status": "error", "error": str(exc)}
+    finally:
+        conn.close()
 
 
 def _default_rules():

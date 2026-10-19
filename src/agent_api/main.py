@@ -36,7 +36,18 @@ class HealthResponse(BaseModel):
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     await init_db()
+    # Start compliance scheduler (if available)
+    try:
+        from compliance.jobs.scheduler import start_scheduler, stop_scheduler
+        start_scheduler()
+    except ImportError:
+        pass
     yield
+    try:
+        from compliance.jobs.scheduler import stop_scheduler
+        stop_scheduler()
+    except ImportError:
+        pass
 
 
 def create_app() -> FastAPI:
