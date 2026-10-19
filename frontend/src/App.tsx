@@ -14,6 +14,7 @@ import { MessageList } from "./components/MessageList";
 import { ToolsPanel } from "./components/ToolsPanel";
 import { ThreadList } from "./components/ThreadList";
 import { Composer } from "./components/Composer";
+import { ComplianceDashboard } from "./components/ComplianceDashboard";
 
 export default function App() {
   const [health, setHealth] = useState<Health | null>(null);
@@ -26,6 +27,7 @@ export default function App() {
   const [messages, setMessages] = useState<Message[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [view, setView] = useState<"chat" | "compliance">("chat");
 
   const scrollRef = useRef<HTMLDivElement>(null);
 
@@ -177,6 +179,20 @@ export default function App() {
           </svg>
           <span>agent-api</span>
         </div>
+        <div className="view-tabs">
+          <button
+            className={`view-tab ${view === "chat" ? "active" : ""}`}
+            onClick={() => setView("chat")}
+          >
+            Chat
+          </button>
+          <button
+            className={`view-tab ${view === "compliance" ? "active" : ""}`}
+            onClick={() => setView("compliance")}
+          >
+            Compliance
+          </button>
+        </div>
         <div className="app-header-right">
           <div className="health-chip" title={healthStatus}>
             <span className={healthDotClass} />
@@ -191,72 +207,80 @@ export default function App() {
       </header>
 
       <div className="app-body">
-        <aside className="sidebar">
-          <section className="sidebar-section">
-            <div className="sidebar-header">
-              <h2 className="sidebar-title">Conversations</h2>
-            </div>
-            <button
-              className="btn-new-thread"
-              onClick={startNewThread}
-              disabled={!apiKey}
-            >
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <line x1="12" y1="5" x2="12" y2="19" />
-                <line x1="5" y1="12" x2="19" y2="12" />
-              </svg>
-              New conversation
-            </button>
-            <ThreadList
-              threads={threads}
-              currentThreadId={currentThreadId}
-              onSelect={selectThread}
-            />
-          </section>
-          <section className="sidebar-section grow">
-            <div className="sidebar-header">
-              <h2 className="sidebar-title">Tools</h2>
-            </div>
-            {toolsErr && <div className="error-banner">{toolsErr}</div>}
-            <ToolsPanel tools={tools} />
-          </section>
-        </aside>
+        {view === "chat" ? (
+          <>
+            <aside className="sidebar">
+              <section className="sidebar-section">
+                <div className="sidebar-header">
+                  <h2 className="sidebar-title">Conversations</h2>
+                </div>
+                <button
+                  className="btn-new-thread"
+                  onClick={startNewThread}
+                  disabled={!apiKey}
+                >
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <line x1="12" y1="5" x2="12" y2="19" />
+                    <line x1="5" y1="12" x2="19" y2="12" />
+                  </svg>
+                  New conversation
+                </button>
+                <ThreadList
+                  threads={threads}
+                  currentThreadId={currentThreadId}
+                  onSelect={selectThread}
+                />
+              </section>
+              <section className="sidebar-section grow">
+                <div className="sidebar-header">
+                  <h2 className="sidebar-title">Tools</h2>
+                </div>
+                {toolsErr && <div className="error-banner">{toolsErr}</div>}
+                <ToolsPanel tools={tools} />
+              </section>
+            </aside>
 
-        <main className="main">
-          <div className="toolbar">
-            <div className="thread-id-display">{threadLabel}</div>
-          </div>
-
-          <div className="messages-wrap" ref={scrollRef}>
-            {messages.length === 0 && !loading ? (
-              <div className="empty-state-main">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-                  <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
-                </svg>
-                <h3>Start a conversation</h3>
-                <p>
-                  {apiKey
-                    ? "Ask anything — the agent can use tools like calculator, time, and knowledge base."
-                    : "Enter your API key above to get started."}
-                </p>
+            <main className="main">
+              <div className="toolbar">
+                <div className="thread-id-display">{threadLabel}</div>
               </div>
-            ) : (
-              <>
-                <MessageList messages={messages} />
-                {loading && (
-                  <div className="typing-indicator">
-                    <span />
-                    <span />
-                    <span />
-                  </div>
-                )}
-              </>
-            )}
-            {error && <div className="error-banner">{error}</div>}
-          </div>
 
-          <Composer onSend={handleSend} disabled={loading || !apiKey} />
-        </main>
+              <div className="messages-wrap" ref={scrollRef}>
+                {messages.length === 0 && !loading ? (
+                  <div className="empty-state-main">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+                    </svg>
+                    <h3>Start a conversation</h3>
+                    <p>
+                      {apiKey
+                        ? "Ask anything — the agent can use tools like calculator, time, and knowledge base."
+                        : "Enter your API key above to get started."}
+                    </p>
+                  </div>
+                ) : (
+                  <>
+                    <MessageList messages={messages} />
+                    {loading && (
+                      <div className="typing-indicator">
+                        <span />
+                        <span />
+                        <span />
+                      </div>
+                    )}
+                  </>
+                )}
+                {error && <div className="error-banner">{error}</div>}
+              </div>
+
+              <Composer onSend={handleSend} disabled={loading || !apiKey} />
+            </main>
+          </>
+        ) : (
+          <div className="compliance-view">
+            <ComplianceDashboard />
+          </div>
+        )}
       </div>
 
       <footer className="app-footer">
