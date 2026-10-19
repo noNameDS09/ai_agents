@@ -7,6 +7,7 @@ from .licensing import License, Evidence
 from .controls import Control, ControlObligation, ComplianceFinding
 from .tasks import RemediationTask, Approval
 from .audit import AuditEvent
+from .user import User
 
 __all__ = [
     "ComplianceBase",
@@ -15,5 +16,5 @@ __all__ = [
     "License", "Evidence",
     "Control", "ControlObligation", "ComplianceFinding",
     "RemediationTask", "Approval",
-    "AuditEvent",
+    "AuditEvent", "User",
 ]
