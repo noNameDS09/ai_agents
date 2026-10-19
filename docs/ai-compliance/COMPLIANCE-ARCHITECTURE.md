@@ -62,7 +62,7 @@ control center frontend.
 | **Orchestrator** | Supervisor state machine, planning, routing, retries, approval gates | `src/compliance/orchestrator/` |
 | **Agents** | 6 specialized LangGraph sub-graphs with typed I/O | `src/compliance/agents/` |
 | **Services** | Deterministic code — rules, permissions, audit chain, retrieval, diffing | `src/compliance/services/` |
-| **RAG** | Chunking, embeddings (sentence-transformers), Qdrant retrieval | `src/compliance/rag/` |
+| **RAG** | Chunking, embeddings (OpenRouter), Qdrant retrieval | `src/compliance/rag/` |
 | **Data** | SQLAlchemy models, Alembic migrations, evidence storage adapter | `src/compliance/models/` |
 | **Jobs** | Scheduled monitoring, reminders, escalation | `src/compliance/jobs/` |
 | **Config** | Compliance-specific settings (jurisdictions, rules, thresholds) | `src/compliance/config.py` |
@@ -162,7 +162,7 @@ Rules the orchestrator must enforce:
 | Agent orchestration | LangGraph (upgrade from 0.2.28 to 0.3+/1.x) | `interrupt()` for approvals |
 | Database | PostgreSQL 18.6 | 12 compliance tables + RLS |
 | Vector store | Qdrant (self-hosted via Docker) | pgvector not available on this instance |
-| Embeddings | sentence-transformers (all-MiniLM-L6-v2, 384-dim) | Local, CPU, free, private |
+| Embeddings | OpenRouter free models (`nvidia/llama-nemotron-embed-vl-1b-v2:free`, 2048-dim) | Verified live 2026-10. Free, no PyTorch dependency. Hybrid: local sentence-transformers for sensitive evidence (optional) |
 | Object storage | Local FS → S3-compatible | Evidence files, content-hashed |
 | Background jobs | APScheduler (MVP) → Celery + Redis (scale) | Scheduled monitoring, reminders |
 | Migrations | Alembic | Replace `init_db()` create-all |
@@ -186,7 +186,7 @@ src/
     ├── agents/         # 6 agent sub-graphs
     ├── orchestrator/   # supervisor state machine
     ├── services/       # deterministic code (no LLM)
-    ├── rag/            # chunking, embeddings, retrieval
+    ├── rag/            # chunking, embeddings (OpenRouter), retrieval (Qdrant)
     ├── api/v1/         # compliance routers
     └── jobs/           # scheduled/background
 ```

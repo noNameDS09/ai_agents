@@ -20,11 +20,15 @@ for _key in ("COMPLIANCE_EMBEDDING_MODEL", "COMPLIANCE_EMBEDDING_DIM",
 
 class ComplianceSettings(BaseSettings):
     # Embeddings
-    embedding_model: str = Field(
-        "sentence-transformers/all-MiniLM-L6-v2",
-        description="HuggingFace sentence-transformers model name",
+    embedding_provider: str = Field(
+        "openrouter",
+        description="Embedding provider: 'openrouter' (free API) or 'local' (sentence-transformers)",
     )
-    embedding_dim: int = Field(384, description="Embedding dimension (must match model)")
+    embedding_model: str = Field(
+        "nvidia/llama-nemotron-embed-vl-1b-v2:free",
+        description="Embedding model name (OpenRouter model ID or HuggingFace model name)",
+    )
+    embedding_dim: int = Field(2048, description="Embedding dimension (must match model)")
 
     # Vector store
     qdrant_url: str = Field("http://localhost:6333", description="Qdrant server URL")

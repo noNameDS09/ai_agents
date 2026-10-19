@@ -84,28 +84,40 @@ Vector similarity alone is never sufficient to determine legal applicability.
 
 ### 3.1 Embedding provider comparison
 
-| Option | Pros | Cons | Verdict |
-|---|---|---|---|
-| **Local sentence-transformers** (`all-MiniLM-L6-v2`, 384-dim) | Free, no API key, runs on CPU, data stays on-server (privacy), no external dependency, ~50ms/embedding | Lower quality than large models; needs PyTorch (heavy dependency) | ✅ **Recommended for MVP** |
-| **OpenRouter embedding models** | Same provider as LLM; simple integration | **No embedding models exist on OpenRouter** (verified — zero results for "embed" in 471 models) | ❌ Not available |
-| **Qdrant Cloud free tier** | Managed, no ops; free cloud inference with selected models | Data leaves server (privacy concern for compliance); 1GB RAM / 4GB disk limit; free tier may be suspended | ⚠️ Good for dev, not for compliance prod |
-| **Paid embedding API** (OpenAI, Cohere, Voyage) | High quality, managed | Cost per token; data leaves server; vendor lock-in | ❌ Violates "free inference only" constraint |
-| **EmbeddingGemma 2** (Google, 740M params, 768-dim) | Higher quality than MiniLM; open source; can run locally | Larger model (slower on CPU); needs HuggingFace transformers | ⚠️ Upgrade path for Phase 2 |
+Verified against OpenRouter's live API (`/api/v1/embeddings/models`) — OpenRouter
+exposes 33 embedding models, 3 of which are free:
 
-**Decision: Local sentence-transformers (`all-MiniLM-L6-v2`)**
+| Option | Dim | Cost | Health | Verdict |
+|---|---|---|---|---|
+| **OpenRouter `nvidia/llama-nemotron-embed-vl-1b-v2:free`** | 2048 | $0 | 99.97% (3-day) | ✅ **Recommended** |
+| OpenRouter `nvidia/nemotron-3-embed-1b:free` | 2048 | $0 | 69.17% (3-day, intermittent) | ⚠️ Unstable |
+| OpenRouter `liquid/lfm-2.5-embedding-350m:free` | 1024 | $0 | Unconfirmed | ⚠️ Lower dim |
+| Local sentence-transformers (`all-MiniLM-L6-v2`) | 384 | $0 | N/A (local) | ⚠️ Fallback for sensitive data |
+| Paid embedding API (OpenAI, Cohere, Voyage) | varies | $/token | N/A | ❌ Violates "free inference only" |
+| EmbeddingGemma 2 (Google, 740M params) | 768 | $0 (local) | N/A | ⚠️ Upgrade path if quality needed |
+
+**Decision: OpenRouter `nvidia/llama-nemotron-embed-vl-1b-v2:free` (primary)**
 
 Rationale:
-1. **Privacy**: Compliance documents (regulations, contracts, financial data) must
-   not leave the server. Local embeddings guarantee this.
-2. **No external dependency**: No API key, no rate limits, no network calls during
-   embedding. The system works offline.
-3. **Free**: No cost, aligns with "free inference only" constraint.
-4. **Sufficient quality**: all-MiniLM-L6-v2 (384-dim) scores well on MTEB for
-   retrieval tasks. For a compliance system, precision matters more than raw
-   embedding quality — and citations are verified by exact text match, not just
-   vector similarity.
-5. **Upgrade path**: If quality is insufficient, swap to EmbeddingGemma 2 or a
-   larger model by changing one config value.
+1. **Free**: $0 cost, aligns with "free inference only" constraint.
+2. **High quality**: 2048-dim dedicated embedding model (vs 384-dim general-purpose).
+3. **No heavy dependencies**: No PyTorch/transformers needed — just an HTTP call.
+   Removes ~2GB of dependencies from the base stack.
+4. **High availability**: 99.97% reported uptime over 3 days.
+5. **OpenAI-compatible**: Uses the same `/api/v1/embeddings` endpoint pattern as
+   chat completions — trivial integration with existing OpenRouter client.
+
+**Hybrid privacy policy:**
+- **Public regulatory text** (statutes, rules, filings — all public information)
+  → OpenRouter embeddings. No sensitive data leaves the server.
+- **Sensitive evidence** (client financial data, internal documents)
+  → Local `sentence-transformers/all-MiniLM-L6-v2` (optional, only if needed).
+  Configured via `EMBEDDING_PROVIDER` setting: `openrouter` (default) or `local`.
+
+This is a change from the earlier "local only" recommendation. The discovery that
+OpenRouter serves free, high-quality embedding models with 99.97% uptime makes
+the all-OpenRouter approach the clear winner for MVP. Local fallback remains
+available for privacy-sensitive use cases.
 
 ### 3.2 Vector store comparison
 
@@ -484,7 +496,15 @@ Track these from Phase 1 onward — they are the definition of done, not vanity 
 
 ## 10. Open questions
 
-1. **Jurisdiction scope for MVP** — which US state(s) and license types? Determines
+1. **Embedding provider** — ✅ **RESOLVED**: OpenRouter free embedding models exist
+   (3 available: `nvidia/llama-nemotron-embed-vl-1b-v2:free` (2048-dim, 99.97%),
+   `nvidia/nemotron-3-embed-1b:free` (2048-dim, 69.17%), `liquid/lfm-2.5-embedding-350m:free`
+   (1024-dim)). Selected: `nvidia/llama-nemotron-embed-vl-1b-v2:free`. Verified via live
+   API call — returns 2048-dim embeddings at $0 cost. Hybrid fallback to local
+   sentence-transformers for sensitive evidence (optional).
+2. **Vector store** — ✅ **RESOLVED**: pgvector not available on this Postgres 18.6.
+   Qdrant (self-hosted via Docker) selected. Verified: `docker run -p 6333:6333 qdrant/qdrant`.
+3. **Jurisdiction scope for MVP** — which US state(s) and license types? Determines
    the rules-engine surface in Phase 1.2. (Fintech focus confirmed: MTL, state lending,
    broker-dealer, FinCEN registration.)
 2. **LangGraph upgrade** — 0.2.28's `interrupt()` is the weakest link for approval
