@@ -504,16 +504,16 @@ Track these from Phase 1 onward — they are the definition of done, not vanity 
    sentence-transformers for sensitive evidence (optional).
 2. **Vector store** — ✅ **RESOLVED**: pgvector not available on this Postgres 18.6.
    Qdrant (self-hosted via Docker) selected. Verified: `docker run -p 6333:6333 qdrant/qdrant`.
-3. **Jurisdiction scope for MVP** — which US state(s) and license types? Determines
-   the rules-engine surface in Phase 1.2. (Fintech focus confirmed: MTL, state lending,
-   broker-dealer, FinCEN registration.)
-2. **LangGraph upgrade** — 0.2.28's `interrupt()` is the weakest link for approval
-   workflows. Upgrade path must be validated in Phase 0.6.
-3. **Frontend split** — extend the existing Vite SPA, or a separate Next.js control
-   center? Decide in Phase 1.6.
-4. **Evidence file types** — PDF only for MVP, or DOCX/XLSX too? Affects Phase 3.1.
-5. **Multi-tenancy model** — separate database per org vs shared schema + RLS.
-   Recommendation: shared schema + RLS for operational simplicity.
+3. **Jurisdiction scope for MVP** — ✅ **RESOLVED**: US fintech. Start with Money
+   Transmitter Licenses (MTL) in CA, NY, TX + FinCEN registration. Expand to state
+   lending and broker-dealer in later phases.
+4. **LangGraph upgrade** — ✅ **RESOLVED**: Upgraded 0.2.28 → 0.6.11. `interrupt()`
+   and `Command(resume=...)` verified working. All 63 tests pass. Approval gates
+   can use native `interrupt()`.
+5. **Frontend split** — ✅ **RESOLVED**: Extend existing Vite SPA. Compliance
+   screens added to the existing React frontend. Re-evaluate for Phase 3.
+6. **Evidence file types** — ✅ **RESOLVED**: PDF, DOCX, XLSX for MVP.
+7. **Multi-tenancy model** — ✅ **RESOLVED**: Shared schema + `org_id` + Postgres RLS.
 
 ---
 

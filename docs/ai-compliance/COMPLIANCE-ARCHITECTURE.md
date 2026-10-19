@@ -159,7 +159,7 @@ Rules the orchestrator must enforce:
 |---|---|---|
 | Frontend | Next.js (recommended) or existing React/Vite | Decision deferred to Phase 1.6 |
 | Backend API | FastAPI (existing) | New compliance routers mounted |
-| Agent orchestration | LangGraph (upgrade from 0.2.28 to 0.3+/1.x) | `interrupt()` for approvals |
+| Agent orchestration | LangGraph 0.6.11 (upgraded from 0.2.28) | `interrupt()` + `Command(resume=...)` verified working |
 | Database | PostgreSQL 18.6 | 12 compliance tables + RLS |
 | Vector store | Qdrant (self-hosted via Docker) | pgvector not available on this instance |
 | Embeddings | OpenRouter free models (`nvidia/llama-nemotron-embed-vl-1b-v2:free`, 2048-dim) | Verified live 2026-10. Free, no PyTorch dependency. Hybrid: local sentence-transformers for sensitive evidence (optional) |
