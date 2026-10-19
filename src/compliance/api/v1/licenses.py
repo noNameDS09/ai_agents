@@ -7,6 +7,7 @@ from datetime import date
 from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
+from pydantic import BaseModel
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -23,15 +24,19 @@ async def get_session():
         yield session
 
 
+class LicenseCreate(BaseModel):
+    license_type: str
+    authority: str
+    jurisdiction_id: uuid.UUID
+    issued_on: Optional[date] = None
+    expires_on: Optional[date] = None
+    renewal_window_days: int = 90
+
+
 @router.post("/entities/{entity_id}/licenses", status_code=status.HTTP_201_CREATED)
 async def create_license(
     entity_id: uuid.UUID,
-    license_type: str,
-    authority: str,
-    jurisdiction_id: uuid.UUID,
-    issued_on: Optional[date] = None,
-    expires_on: Optional[date] = None,
-    renewal_window_days: int = 90,
+    body: LicenseCreate,
     _role: str = Depends(require_role_dep("create_license")),
     session: AsyncSession = Depends(get_session),
 ):
@@ -41,12 +46,12 @@ async def create_license(
 
     lic = License(
         entity_id=entity_id,
-        license_type=license_type,
-        authority=authority,
-        jurisdiction_id=jurisdiction_id,
-        issued_on=issued_on,
-        expires_on=expires_on,
-        renewal_window_days=renewal_window_days,
+        license_type=body.license_type,
+        authority=body.authority,
+        jurisdiction_id=body.jurisdiction_id,
+        issued_on=body.issued_on,
+        expires_on=body.expires_on,
+        renewal_window_days=body.renewal_window_days,
     )
     session.add(lic)
     await session.commit()

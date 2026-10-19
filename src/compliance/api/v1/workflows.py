@@ -51,8 +51,6 @@ async def run_workflow(
         date_range_end=req.date_range_end,
     )
 
-    from .base import AgentContext  # noqa
-    # Actually use the base module
     from ...agents.base import AgentContext
 
     ctx = AgentContext(

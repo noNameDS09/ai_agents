@@ -53,11 +53,21 @@ class LicenseDeadlineAgent(AgentContract):
         org_id = input_data.org_id
 
         # Fetch licenses for this org/entity
+        from ..models.organization import Jurisdiction
         stmt = select(License).where(License.entity_id.isnot(None))
         if input_data.entity_id:
             stmt = stmt.where(License.entity_id == input_data.entity_id)
         result = await session.execute(stmt)
         licenses = result.scalars().all()
+
+        # Build jurisdiction code lookup
+        jur_ids = {lic.jurisdiction_id for lic in licenses}
+        jur_map = {}
+        if jur_ids:
+            jur_stmt = select(Jurisdiction).where(Jurisdiction.id.in_(jur_ids))
+            jur_result = await session.execute(jur_stmt)
+            for j in jur_result.scalars().all():
+                jur_map[j.id] = j.code
 
         upcoming = []
         tasks_created = 0
@@ -71,7 +81,7 @@ class LicenseDeadlineAgent(AgentContract):
                 continue
 
             # Find matching rule
-            rule = self._find_rule(lic)
+            rule = self._find_rule(lic, jur_map)
             if rule is None:
                 logger.warning("No rule found for license %s in jurisdiction %s", lic.id, lic.jurisdiction_id)
                 continue
@@ -123,9 +133,10 @@ class LicenseDeadlineAgent(AgentContract):
             escalated_count=escalated_count,
         )
 
-    def _find_rule(self, license) -> Optional[DeadlineRule]:
+    def _find_rule(self, license, jur_map: dict) -> Optional[DeadlineRule]:
+        jur_code = jur_map.get(license.jurisdiction_id, str(license.jurisdiction_id))
         for rule in self.rules:
-            if rule.jurisdiction_id == str(license.jurisdiction_id) and rule.license_type == license.license_type:
+            if rule.jurisdiction_id == jur_code and rule.license_type == license.license_type:
                 return rule
         return None
 
