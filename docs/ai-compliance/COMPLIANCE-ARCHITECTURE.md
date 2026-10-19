@@ -1,7 +1,7 @@
 # ComplianceOS — System Architecture
 
 **Status:** Plan (pre-implementation)
-**Source:** [AI-COMPLIANCE.md](../AI-COMPLIANCE.md)
+**Source:** [AI-COMPLIANCE.md](../AI-COMPLIANCE.md) §4
 **Plan:** [COMPLIANCE-PLAN.md](COMPLIANCE-PLAN.md)
 
 ---
