@@ -534,9 +534,9 @@ Track these from Phase 1 onward — they are the definition of done, not vanity 
 
 ## 12. Immediate next steps
 
-1. Decide open questions 1, 3, 5 (jurisdiction, LangGraph upgrade, frontend split).
-2. Execute **Phase 0** (extensions, migrations, tenancy, RBAC, audit chain, LangGraph upgrade).
-3. Create the Phase 0 architecture docs listed in section 8.
+1. ~~Decide open questions 1, 3, 5 (jurisdiction, LangGraph upgrade, frontend split).~~ ✅ All resolved
+2. ~~Execute **Phase 0** (extensions, migrations, tenancy, RBAC, audit chain, LangGraph upgrade).~~ ✅ Complete
+3. ~~Create the Phase 0 architecture docs listed in section 8.~~ ✅ Complete
 4. Begin **Phase 1.1–1.3** (core tables, rules engine, License & Deadline agent).
 
 ---
