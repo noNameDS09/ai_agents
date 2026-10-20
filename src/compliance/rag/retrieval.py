@@ -1,10 +1,17 @@
 """Qdrant-based retrieval for regulatory chunks.
 
 Provides upsert and search operations partitioned by org_id for tenant isolation.
+
+Collections are named by embedding dimension (e.g. ``compliance_chunks_2048``)
+so switching embedding providers cannot mix vector spaces in one collection.
+That matters: 384-dim local vectors and 2048-dim OpenRouter vectors are not
+comparable, and silently mixing them corrupts retrieval (and therefore
+citations).
 """
 
 from __future__ import annotations
 
+import asyncio
 import logging
 import uuid
 from typing import List, Optional, Tuple
@@ -25,27 +32,56 @@ from ..config import compliance_settings
 
 logger = logging.getLogger("compliance.rag.retrieval")
 
-COLLECTION_NAME = compliance_settings.qdrant_collection
-QDRANT_URL = compliance_settings.qdrant_url
-EMBEDDING_DIM = compliance_settings.embedding_dim
+# Namespace for deterministic point IDs. Point IDs are derived from
+# (regulation_version_id, chunk_index) so re-indexing overwrites in place
+# instead of duplicating vectors (duplicates would surface twice in results).
+POINT_ID_NAMESPACE = uuid.UUID("6f9619ff-8b86-d011-b42d-00c04fc964ff")
+
+
+def current_embedding_dim() -> int:
+    """Dimension of the embeddings this process will produce."""
+    try:
+        return embedding_dim()
+    except Exception:
+        # Unknown model: trust explicit config rather than guessing.
+        return compliance_settings.embedding_dim
+
+
+def collection_name() -> str:
+    """Dimension-scoped collection name for the configured embedding model."""
+    return f"{compliance_settings.qdrant_collection}_{current_embedding_dim()}"
+
+
+def _point_id(regulation_version_id: uuid.UUID, chunk_index: int) -> str:
+    """Stable Qdrant point ID for a chunk within a regulation version."""
+    return str(uuid.uuid5(POINT_ID_NAMESPACE, f"{regulation_version_id}:{chunk_index}"))
 
 
 def get_qdrant_client() -> QdrantClient:
     """Get a Qdrant client (lazy, reused)."""
-    return QdrantClient(url=QDRANT_URL)
+    return QdrantClient(url=compliance_settings.qdrant_url)
 
 
 def ensure_collection(client: Optional[QdrantClient] = None) -> None:
-    """Create the collection if it doesn't exist."""
+    """Create the collection for the active embedding dimension if missing."""
     if client is None:
         client = get_qdrant_client()
+    name = collection_name()
     collections = [c.name for c in client.get_collections().collections]
-    if COLLECTION_NAME not in collections:
+    if name in collections:
+        return
+    try:
         client.create_collection(
-            collection_name=COLLECTION_NAME,
-            vectors_config=VectorParams(size=EMBEDDING_DIM, distance=Distance.COSINE),
+            collection_name=name,
+            vectors_config=VectorParams(size=current_embedding_dim(), distance=Distance.COSINE),
         )
-        logger.info("Created Qdrant collection: %s", COLLECTION_NAME)
+        logger.info("Created Qdrant collection: %s", name)
+    except Exception as exc:
+        # Another worker may have created it between the check and the create.
+        collections = [c.name for c in client.get_collections().collections]
+        if name not in collections:
+            raise
+        logger.debug("Collection %s already exists (%s)", name, exc)
 
 
 def upsert_chunks(
@@ -53,14 +89,38 @@ def upsert_chunks(
     regulation_version_id: uuid.UUID,
     org_id: Optional[uuid.UUID] = None,
     client: Optional[QdrantClient] = None,
+    embeddings: Optional[List[List[float]]] = None,
 ) -> int:
-    """Embed and upsert chunks into Qdrant. Returns number of points upserted."""
+    """Embed and upsert chunks into Qdrant. Returns number of points upserted.
+
+    Args:
+        chunks: Chunks to store.
+        regulation_version_id: Owning regulation version (used in payload + IDs).
+        org_id: Optional tenant scope for private documents.
+        client: Optional Qdrant client (created if omitted).
+        embeddings: Precomputed vectors. If omitted, chunks are embedded here.
+    """
     if client is None:
         client = get_qdrant_client()
     ensure_collection(client)
 
     texts = [c.text for c in chunks]
-    embeddings = embed_texts(texts)
+    if embeddings is None:
+        embeddings = embed_texts(texts)
+    if len(embeddings) != len(chunks):
+        raise ValueError(
+            f"Got {len(embeddings)} embeddings for {len(chunks)} chunks"
+        )
+
+    # Guard: never write vectors that do not match the collection dimension.
+    # A mismatch means a different embedding model produced them, and mixing
+    # vector spaces silently degrades retrieval (wrong citations).
+    expected_dim = current_embedding_dim()
+    if embeddings and len(embeddings[0]) != expected_dim:
+        raise ValueError(
+            f"Embedding dimension {len(embeddings[0])} does not match collection "
+            f"{collection_name()} dimension {expected_dim}. Refusing to upsert."
+        )
 
     points = []
     for chunk, emb in zip(chunks, embeddings):
@@ -76,14 +136,39 @@ def upsert_chunks(
             payload["org_id"] = str(org_id)
 
         points.append(PointStruct(
-            id=str(uuid.uuid4()),
+            id=_point_id(regulation_version_id, chunk.index),
             vector=emb,
             payload=payload,
         ))
 
-    client.upsert(collection_name=COLLECTION_NAME, points=points)
+    client.upsert(collection_name=collection_name(), points=points)
     logger.info("Upserted %d chunks for version %s", len(points), regulation_version_id)
     return len(points)
+
+
+def delete_version_points(
+    regulation_version_id: uuid.UUID,
+    client: Optional[QdrantClient] = None,
+) -> None:
+    """Remove all vectors for a regulation version (safe no-op if unindexed)."""
+    from qdrant_client.models import FilterSelector
+
+    if client is None:
+        client = get_qdrant_client()
+    try:
+        client.delete(
+            collection_name=collection_name(),
+            points_selector=FilterSelector(
+                filter=Filter(must=[
+                    FieldCondition(
+                        key="regulation_version_id",
+                        match=MatchValue(value=str(regulation_version_id)),
+                    )
+                ])
+            ),
+        )
+    except Exception as exc:  # collection may not exist yet
+        logger.warning("Could not purge vectors for version %s: %s", regulation_version_id, exc)
 
 
 def search_chunks(
@@ -115,7 +200,7 @@ def search_chunks(
     query_filter = Filter(must=conditions) if conditions else None
 
     results = client.search(
-        collection_name=COLLECTION_NAME,
+        collection_name=collection_name(),
         query_vector=query_embedding,
         limit=top_k,
         query_filter=query_filter,
@@ -133,3 +218,23 @@ def search_chunks(
         }
         for r in results
     ]
+
+
+async def asearch_chunks(
+    query: str,
+    top_k: int = 5,
+    org_id: Optional[uuid.UUID] = None,
+    regulation_version_id: Optional[uuid.UUID] = None,
+) -> List[dict]:
+    """Async wrapper around `search_chunks` for use in request handlers.
+
+    Embedding + Qdrant search are blocking calls; running them in a worker
+    thread keeps the event loop responsive.
+    """
+    return await asyncio.to_thread(
+        search_chunks,
+        query,
+        top_k,
+        org_id,
+        regulation_version_id,
+    )

@@ -12,7 +12,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from ...services.rbac import require_role_dep
+from ...services.rbac import Principal, assert_org_access, require_action, set_rls_context
 
 router = APIRouter()
 
@@ -34,7 +34,7 @@ async def get_session():
 @router.post("/workflows/run", status_code=status.HTTP_202_ACCEPTED)
 async def run_workflow(
     req: WorkflowRunRequest,
-    _role: str = Depends(require_role_dep("run_workflow")),
+    principal: Principal = Depends(require_action("run_workflow")),
     session: AsyncSession = Depends(get_session),
 ):
     """Trigger a compliance workflow."""
@@ -42,6 +42,8 @@ async def run_workflow(
     from ...services.rules_engine import DeadlineRule
 
     org_id = uuid.UUID(req.org_id)
+    assert_org_access(principal, org_id)
+    await set_rls_context(session, org_id)
 
     # Load rules (in production, from jurisdiction_rules table)
     rules = _default_rules()
@@ -88,7 +90,7 @@ async def resume_workflow(
     thread_id: str,
     decision: str = "APPROVED",
     rationale: str = "",
-    _role: str = Depends(require_role_dep("resume_workflow")),
+    _principal: Principal = Depends(require_action("resume_workflow")),
     session: AsyncSession = Depends(get_session),
 ):
     """Resume a paused workflow after human approval."""

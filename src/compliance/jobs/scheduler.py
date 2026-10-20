@@ -10,6 +10,7 @@ Jobs:
 from __future__ import annotations
 
 import logging
+import uuid
 from datetime import datetime, timezone
 
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
@@ -65,6 +66,15 @@ def start_scheduler() -> None:
         replace_existing=True,
     )
 
+    # Re-index pending/failed regulation versions — every 15 minutes
+    scheduler.add_job(
+        _reindex_pending_versions,
+        trigger=IntervalTrigger(minutes=15),
+        id="reindex_pending_versions",
+        name="Re-index pending regulation versions",
+        replace_existing=True,
+    )
+
     scheduler.start()
     logger.info("APScheduler started with %d jobs", len(scheduler.get_jobs()))
 
@@ -79,12 +89,98 @@ def stop_scheduler() -> None:
 async def _fetch_regulations() -> None:
     """Fetch regulatory updates from configured sources."""
     logger.info("Running regulatory source fetch")
-    # TODO: Implement regulatory source fetch via Tavily MCP
-    # 1. Load source registry from DB
-    # 2. For each source, fetch latest content
-    # 3. Hash and compare with stored version
-    # 4. If changed, create new RegulationVersion
-    # 5. Trigger Obligation Mapping agent for potentially affected obligations
+    from agent_api.config import settings
+    from agent_api.database import async_session
+    from sqlalchemy import select
+    from ..models.source import RegulatorySource
+    from ..agents.regulatory_intelligence import RegulatoryIntelligenceAgent, RegulatoryIngestInput
+    from ..agents.base import AgentContext
+
+    if not settings.tavily_api_key:
+        logger.info("TAVILY_API_KEY not configured — skipping regulatory fetch")
+        return
+
+    async with async_session() as session:
+        result = await session.execute(
+            select(RegulatorySource).where(RegulatorySource.active == True)
+        )
+        sources = result.scalars().all()
+
+        agent = RegulatoryIntelligenceAgent()
+        for source in sources:
+            try:
+                input_data = RegulatoryIngestInput(
+                    jurisdiction_code=await _jurisdiction_code(session, source.jurisdiction_id),
+                    source_url=source.url,
+                    citation=source.name,
+                    title=source.name,
+                    prefer_tavily=True,
+                    tavily_api_key=settings.tavily_api_key,
+                )
+                ctx = AgentContext(
+                    org_id="",
+                    thread_id=f"fetch-{uuid.uuid4()}",
+                    checkpoint_ns=f"fetch:{source.id}",
+                    db_session=session,
+                )
+                result = await agent.run(input_data, ctx)
+                logger.info("Fetched %s: changed=%s chunks=%s", source.url, result.changed, result.chunks_created)
+            except Exception as exc:
+                logger.warning("Failed to fetch source %s: %s", source.url, exc)
+        await session.commit()
+
+
+async def _jurisdiction_code(session, jurisdiction_id) -> str:
+    from sqlalchemy import select
+    from ..models.organization import Jurisdiction
+    result = await session.execute(
+        select(Jurisdiction.code).where(Jurisdiction.id == jurisdiction_id)
+    )
+    return result.scalar_one_or_none() or "US-FEDERAL"
+
+
+async def _reindex_pending_versions() -> None:
+    """Index regulation versions left PENDING or FAILED by an outage.
+
+    Bounded per run so a large backlog cannot monopolize the worker; the job
+    repeats every 15 minutes until the backlog drains.
+    """
+    from agent_api.database import async_session
+    from sqlalchemy import or_, select
+    from ..models.regulatory import RegulationVersion
+    from ..services.ingest_pipeline import ingest_regulation_version
+    from ..rag.retrieval import collection_name
+
+    max_per_run = 5
+    current_collection = collection_name()
+    async with async_session() as session:
+        result = await session.execute(
+            select(RegulationVersion)
+            .where(or_(
+                RegulationVersion.index_status.in_(["PENDING", "FAILED"]),
+                # Provider/model change: old vectors live in another collection
+                # and would be invisible at retrieval time.
+                RegulationVersion.index_collection.is_(None),
+                RegulationVersion.index_collection != current_collection,
+            ))
+            .order_by(RegulationVersion.ingested_at.asc())
+            .limit(max_per_run)
+        )
+        versions = result.scalars().all()
+        if not versions:
+            return
+
+        logger.info("Re-indexing %d regulation version(s)", len(versions))
+        for version in versions:
+            try:
+                outcome = await ingest_regulation_version(session, version.id)
+                await session.commit()
+                logger.info(
+                    "Re-indexed %s (%d chunks)", version.id, outcome.chunks_created
+                )
+            except Exception as exc:
+                await session.commit()  # keep FAILED status + error text
+                logger.warning("Re-index failed for %s: %s", version.id, exc)
 
 
 async def _send_reminders() -> None:
@@ -110,7 +206,7 @@ async def _check_escalations() -> None:
 async def _verify_audit_chain() -> None:
     """Verify audit chain integrity."""
     logger.info("Running audit chain verification")
-    from .audit_chain import verify_audit_chain
+    from .services.audit_chain import verify_audit_chain
     from agent_api.database import async_session
     async with async_session() as session:
         result = await verify_audit_chain(session)

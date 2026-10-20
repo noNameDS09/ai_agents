@@ -12,17 +12,24 @@ dependencies = [
     "langchain-core>=0.3.0,<0.4.0",
     "langchain-openai>=0.2.0,<0.3.0",
     "langgraph-checkpoint-postgres>=3.0.0,<4.0.0",
+    # Bundled libpq — the LangGraph Postgres checkpointer uses psycopg (sync)
+    # and slim/container images do not ship libpq.
+    "psycopg[binary]>=3.2.0",
     "sqlalchemy[asyncio]>=2.0.36,<3.0.0",
     "asyncpg>=0.29.0,<0.30.0",
     "python-dotenv>=1.0.0,<2.0.0",
     "anyio>=4.4.0,<5.0.0",
     "mcp>=1.27.2",
-    "sentence-transformers>=6.1.0",
     "qdrant-client>=1.19.1",
     "alembic>=1.20.0",
 ]
 
 [project.optional-dependencies]
+# On-prem/local embeddings for sensitive documents. Not installed by default:
+# pulls in torch (~2GB). Install with: uv sync --extra local
+local = [
+    "sentence-transformers>=6.1.0",
+]
 dev = [
     "pytest>=8.3.0,<9.0.0",
     "pytest-asyncio>=0.24.0,<0.25.0",

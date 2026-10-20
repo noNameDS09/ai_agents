@@ -1,6 +1,6 @@
 # ComplianceOS — AI-Native Financial Compliance Agent System
 
-**Status:** Plan (pre-implementation)
+**Status:** Phase 0–2 implemented; Phase 3 next
 **Source:** [AI-COMPLIANCE.md](AI-COMPLIANCE.md)
 **Base codebase:** `agent-api` (this repository)
 **Target stack:** Python 3.12 · FastAPI · LangGraph · PostgreSQL + Qdrant · React/Next.js
@@ -537,7 +537,35 @@ Track these from Phase 1 onward — they are the definition of done, not vanity 
 1. ~~Decide open questions 1, 3, 5 (jurisdiction, LangGraph upgrade, frontend split).~~ ✅ All resolved
 2. ~~Execute **Phase 0** (extensions, migrations, tenancy, RBAC, audit chain, LangGraph upgrade).~~ ✅ Complete
 3. ~~Create the Phase 0 architecture docs listed in section 8.~~ ✅ Complete
-4. Begin **Phase 1.1–1.3** (core tables, rules engine, License & Deadline agent).
+4. ~~Begin **Phase 1.1–1.3** (core tables, rules engine, License & Deadline agent).~~ ✅ Complete
+5. ~~Execute **Phase 2.1–2.6** (source registry, versioning/diff, chunk+embed, Regulatory
+   Intelligence, Obligation Mapping, review queue UI).~~ ✅ Complete
+6. **Phase 3** next: controls + `control_obligations` coverage, Evidence agent
+   (PDF/DOCX/XLSX), audit-package export.
+
+### Phase 2 — implementation notes
+
+| # | Deliverable | Status | Notes |
+|---|---|---|---|
+| 2.1 | Source registry + fetch | ✅ | `regulatory_sources`; Tavily `extract` with direct-HTTP fallback |
+| 2.2 | Version + change detection | ✅ | Per-citation hash comparison; unified diff summary on change |
+| 2.3 | Chunk + embed | ✅ | 512/64 deterministic chunks; retried/batched/cached embeddings; dimension-scoped Qdrant collections; `index_status` + reindex job |
+| 2.4 | Regulatory Intelligence agent | ✅ | Stores immutable versions, reports change summary with citations |
+| 2.5 | Obligation Mapping agent | ✅ | LLM extraction + deterministic citation resolution; uncited items dropped |
+| 2.6 | Review queue UI | ✅ | Regulations + Review Queue tabs; approve → CONFIRMED, reject → NOT_APPLICABLE |
+
+**Known limitations / follow-ups**
+
+- Free embedding endpoint is intermittently slow (60s+) or returns 504. Retries,
+  caching, and background indexing absorb this; a paid embedding model is the
+  production fix. `sentence-transformers` local fallback is now an optional extra.
+- Page-level extraction (e.g. regulator landing pages) often yields navigation
+  boilerplate, not statutory text. Prefer direct document URLs (eCFR XML/PDF) and
+  add a boilerplate-quality check before obligation mapping.
+- The app still connects to Postgres as the owner/superuser in local dev, which
+  bypasses RLS. A non-superuser `compliance_app` role is provisioned by
+  `scripts/init-db.sql` and `FORCE ROW LEVEL SECURITY` is applied; switching the
+  runtime connection is a deployment step (see `docs/SETUP.md`).
 
 ---
 

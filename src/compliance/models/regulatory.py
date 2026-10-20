@@ -29,6 +29,15 @@ class RegulationVersion(ComplianceBase, TimestampMixin):
     supersedes_id: Mapped[Optional[uuid.UUID]] = mapped_column(UUID(as_uuid=True), ForeignKey("regulation_versions.id"), nullable=True)
     raw_text: Mapped[str] = mapped_column(Text, nullable=False)
     content_sha256: Mapped[str] = mapped_column(Text, nullable=False)
+    # PENDING | INDEXED | FAILED — tracks chunk/embed state in the vector store.
+    # A version is a valid legal record even if indexing failed; retrieval just
+    # cannot cite it until re-indexed.
+    index_status: Mapped[str] = mapped_column(String(20), nullable=False, default="PENDING")
+    index_error: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    # Which embedding-space collection holds this version's vectors, e.g.
+    # compliance_chunks_2048. Recorded so a provider/model change is detectable
+    # (stale index) instead of silently returning nothing at retrieval time.
+    index_collection: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     ingested_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     ingested_by: Mapped[Optional[uuid.UUID]] = mapped_column(UUID(as_uuid=True), nullable=True)
 

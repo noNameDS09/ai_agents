@@ -275,4 +275,148 @@ export async function verifyAudit(apiKey?: string): Promise<{ status: string; ev
   return res.json();
 }
 
+// ---------------------------------------------------------------------------
+// Phase 2 — regulatory monitoring
+// ---------------------------------------------------------------------------
+
+export type RegulationSource = {
+  id: string;
+  name: string;
+  url: string;
+  source_type: string;
+  active: boolean;
+  last_fetched_at: string | null;
+};
+
+export type RegulationVersion = {
+  id: string;
+  citation: string;
+  title: string;
+  version_no: number;
+  publication_date: string | null;
+  effective_date: string | null;
+  content_sha256: string;
+  supersedes_id: string | null;
+  source_url: string | null;
+  index_status: "PENDING" | "INDEXED" | "FAILED";
+  index_error: string | null;
+  index_collection: string | null;
+};
+
+export type IngestResult = {
+  regulation_version_id: string | null;
+  changed: boolean;
+  change_summary: string;
+  source_url: string;
+  content_sha256: string;
+  previous_sha256: string | null;
+  version_no: number;
+  chunks_created: number;
+  index_status: string;
+  index_error: string | null;
+  citations: string[];
+};
+
+export type Obligation = {
+  id: string;
+  citation: string;
+  normalized_text: string;
+  applicability: string;
+  status: string;
+  citation_chunk_ids: string[];
+  created_at?: string;
+};
+
+export type ObligationDecisionResult = {
+  id: string;
+  applicability: string;
+  status: string;
+  decision: string;
+  rationale: string;
+};
+
+export async function listRegulatorySources(apiKey?: string): Promise<RegulationSource[]> {
+  const res = await complianceFetch("/sources", undefined, apiKey);
+  if (!res.ok) throw new Error(`sources ${res.status}`);
+  return res.json();
+}
+
+export async function createRegulatorySource(
+  data: { jurisdiction_code: string; name: string; url: string; source_type?: string },
+  apiKey?: string,
+): Promise<RegulationSource> {
+  const res = await complianceFetch("/sources", {
+    method: "POST",
+    body: JSON.stringify(data),
+  }, apiKey);
+  if (!res.ok) throw new Error(`create source ${res.status}`);
+  return res.json();
+}
+
+export async function ingestRegulation(
+  data: {
+    jurisdiction_code: string;
+    source_url: string;
+    citation: string;
+    title: string;
+    publisher?: string;
+    publication_date?: string;
+    effective_date?: string;
+  },
+  apiKey?: string,
+): Promise<IngestResult> {
+  const res = await complianceFetch("/regulations/ingest", {
+    method: "POST",
+    body: JSON.stringify(data),
+  }, apiKey);
+  if (!res.ok) throw new Error(`ingest ${res.status}: ${await res.text()}`);
+  return res.json();
+}
+
+export async function listRegulationVersions(
+  citation: string,
+  apiKey?: string,
+): Promise<RegulationVersion[]> {
+  const res = await complianceFetch(
+    `/regulations/${encodeURIComponent(citation)}/versions`,
+    undefined,
+    apiKey,
+  );
+  if (!res.ok) throw new Error(`versions ${res.status}`);
+  return res.json();
+}
+
+export async function mapObligations(
+  regulationVersionId: string,
+  orgId: string,
+  apiKey?: string,
+): Promise<{ obligations_proposed: number; obligations: Array<{ citation: string; normalized_text: string }> }> {
+  const res = await complianceFetch("/obligations/map", {
+    method: "POST",
+    body: JSON.stringify({ regulation_version_id: regulationVersionId, org_id: orgId }),
+  }, apiKey);
+  if (!res.ok) throw new Error(`map obligations ${res.status}: ${await res.text()}`);
+  return res.json();
+}
+
+export async function listReviewQueue(apiKey?: string): Promise<Obligation[]> {
+  const res = await complianceFetch("/obligations/review-queue", undefined, apiKey);
+  if (!res.ok) throw new Error(`review queue ${res.status}`);
+  return res.json();
+}
+
+export async function decideObligation(
+  obligationId: string,
+  decision: "APPROVED" | "REJECTED",
+  rationale: string,
+  apiKey?: string,
+): Promise<ObligationDecisionResult> {
+  const res = await complianceFetch(`/obligations/${obligationId}/decide`, {
+    method: "POST",
+    body: JSON.stringify({ decision, rationale }),
+  }, apiKey);
+  if (!res.ok) throw new Error(`decide obligation ${res.status}`);
+  return res.json();
+}
+
 export type { Message, ToolEntry, Health, ChatResponse };

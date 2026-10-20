@@ -1,6 +1,6 @@
 # ComplianceOS — Documentation Index
 
-**Status:** Plan (pre-implementation)
+**Status:** Phase 2 implemented (regulatory monitoring) — Phase 3 next
 **Source:** [AI-COMPLIANCE.md](../AI-COMPLIANCE.md)
 
 ---

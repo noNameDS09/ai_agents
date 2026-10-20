@@ -102,6 +102,7 @@ uv run pytest tests/compliance/test_tenant_isolation.py -v
 | Deadline reminder | Daily 08:00 UTC | Check upcoming license renewals, send reminders |
 | Escalation check | Every hour | Escalate overdue remediation tasks |
 | Audit chain verification | Daily 00:00 UTC | Verify audit chain integrity |
+| Re-index pending versions | Every 15 minutes | Retry `PENDING`/`FAILED` regulation indexing and stale embedding spaces (max 5/run) |
 
 ### Manual job triggers
 
@@ -115,6 +116,61 @@ uv run python -m compliance.jobs.tasks send_reminders
 # Trigger escalation check
 uv run python -m compliance.jobs.tasks check_escalations
 ```
+
+### Regulatory ingestion operations (Phase 2)
+
+**Ingest an authoritative document (recommended for statutes/PDF exports):**
+
+```bash
+uv run python scripts/ingest_regulation_file.py \
+  --file /path/to/ecfr-1022.xml \
+  --citation "31 CFR Part 1022" \
+  --title "Rules for Money Services Businesses" \
+  --jurisdiction US-FEDERAL \
+  --publisher "FinCEN (eCFR)" \
+  --effective-date 2025-01-01
+```
+
+**Check index state:**
+
+```sql
+SELECT citation, version_no, index_status, index_collection,
+       left(coalesce(index_error, ''), 120) AS error
+FROM regulation_versions
+ORDER BY ingested_at DESC
+LIMIT 20;
+```
+
+**Retry a failed version** (also happens automatically every 15 minutes):
+
+```bash
+curl -X POST http://localhost:8000/v1/compliance/regulations/versions/<id>/reindex \
+  -H "X-API-Key: $API_KEY"
+```
+
+**Embedding provider outage**
+
+The free OpenRouter embedding endpoint is intermittently slow (~60–90s) and
+returns 504s. Expected behavior:
+
+- Ingest returns `202` with `index_status=PENDING` immediately; indexing happens
+  in a background thread so the API stays responsive.
+- Transient failures retry with exponential backoff (4 attempts), then mark the
+  version `FAILED` with `index_error`. The scheduler retries it.
+- Embeddings are cached per process by `(model, sha256(text))`, so re-indexing
+  and repeated searches do not repay the latency.
+- If the outage is prolonged, switch to `COMPLIANCE_EMBEDDING_PROVIDER=local`
+  (requires `uv sync --extra local`) for new ingests; 384-dim vectors live in a
+  separate collection and the scheduler re-indexes versions from the other
+  embedding space.
+
+**Quality gate: page extraction vs. statute text**
+
+Fetching a regulator *landing page* often returns navigation/boilerplate rather
+than legal text, which correctly yields zero obligations (no hallucination).
+Before mapping obligations, confirm the stored `raw_text` contains section
+numbers and operative language ("shall", "must", dollar thresholds). Prefer
+direct document URLs (eCFR API XML, PDFs, statute exports) over index pages.
 
 ## 4. Troubleshooting
 

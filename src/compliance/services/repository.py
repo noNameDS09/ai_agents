@@ -25,9 +25,15 @@ class TenantScopedRepository:
         self.org_id = org_id
 
     async def set_rls_context(self) -> None:
-        """Set the Postgres RLS context for this org (defense-in-depth)."""
+        """Set the Postgres RLS context for this org (defense-in-depth).
+
+        Uses SET LOCAL so the setting is scoped to the current transaction.
+        Plain SET would persist on a pooled connection and could leak one
+        tenant's context into a later request.
+        """
         await self.session.execute(
-            text("SET app.current_org_id = :org_id"), {"org_id": str(self.org_id)}
+            text("SELECT set_config('app.current_org_id', :org_id, true)"),
+            {"org_id": str(self.org_id)},
         )
 
     async def get_by_id(self, model_class, entity_id: uuid.UUID):

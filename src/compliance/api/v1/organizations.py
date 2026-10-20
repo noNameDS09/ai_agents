@@ -11,7 +11,12 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ...models.organization import Jurisdiction, LegalEntity, Organization
-from ...services.rbac import require_role_dep
+from ...services.rbac import (
+    Principal,
+    assert_org_access,
+    require_action,
+    set_rls_context,
+)
 
 router = APIRouter()
 
@@ -37,10 +42,23 @@ class EntityCreate(BaseModel):
 @router.post("/organizations", status_code=status.HTTP_201_CREATED)
 async def create_organization(
     body: OrgCreate,
-    _role: str = Depends(require_role_dep("create_organization")),
+    principal: Principal = Depends(require_action("create_organization")),
     session: AsyncSession = Depends(get_session),
 ):
-    org = Organization(legal_name=body.legal_name, industry=body.industry)
+    """Create an organization.
+
+    Only a cross-org (bootstrap/admin) principal may create organizations; a
+    tenant-bound user cannot mint new tenants.
+    """
+    if not principal.is_cross_org:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Only an administrator may create organizations",
+        )
+    org = Organization(id=uuid.uuid4(), legal_name=body.legal_name, industry=body.industry)
+    # The RLS policy on organizations checks id against the tenant context, so
+    # the context must be set before the row is inserted.
+    await set_rls_context(session, org.id)
     session.add(org)
     await session.commit()
     await session.refresh(org)
@@ -50,9 +68,11 @@ async def create_organization(
 @router.get("/organizations/{org_id}")
 async def get_organization(
     org_id: uuid.UUID,
-    _role: str = Depends(require_role_dep("read_organization")),
+    principal: Principal = Depends(require_action("read_organization")),
     session: AsyncSession = Depends(get_session),
 ):
+    assert_org_access(principal, org_id)
+    await set_rls_context(session, org_id)
     org = await session.get(Organization, org_id)
     if org is None:
         raise HTTPException(status_code=404, detail="Organization not found")
@@ -63,9 +83,11 @@ async def get_organization(
 async def create_entity(
     org_id: uuid.UUID,
     body: EntityCreate,
-    _role: str = Depends(require_role_dep("create_entity")),
+    principal: Principal = Depends(require_action("create_entity")),
     session: AsyncSession = Depends(get_session),
 ):
+    assert_org_access(principal, org_id)
+    await set_rls_context(session, org_id)
     org = await session.get(Organization, org_id)
     if org is None:
         raise HTTPException(status_code=404, detail="Organization not found")
@@ -85,9 +107,11 @@ async def create_entity(
 @router.get("/organizations/{org_id}/entities")
 async def list_entities(
     org_id: uuid.UUID,
-    _role: str = Depends(require_role_dep("read_entity")),
+    principal: Principal = Depends(require_action("read_entity")),
     session: AsyncSession = Depends(get_session),
 ):
+    assert_org_access(principal, org_id)
+    await set_rls_context(session, org_id)
     stmt = select(LegalEntity).where(LegalEntity.org_id == org_id)
     result = await session.execute(stmt)
     entities = result.scalars().all()
@@ -96,7 +120,7 @@ async def list_entities(
 
 @router.get("/jurisdictions")
 async def list_jurisdictions(
-    _role: str = Depends(require_role_dep("read_jurisdiction")),
+    _principal: Principal = Depends(require_action("read_jurisdiction")),
     session: AsyncSession = Depends(get_session),
 ):
     stmt = select(Jurisdiction).where(Jurisdiction.active == True)

@@ -26,6 +26,49 @@ cp .env.example .dev.env   # edit secrets
 uv sync
 ```
 
+## 2b. Docker Compose (all-in-one)
+
+Start everything (PostgreSQL + Qdrant + backend) with one command:
+
+```bash
+# Start all services (builds the image, including the frontend, on first run)
+docker compose up -d --build
+
+# Check status
+docker compose ps
+
+# View logs
+docker compose logs -f backend
+
+# Stop all services
+docker compose down
+
+# Stop and remove volumes (WARNING: deletes all data)
+docker compose down -v
+```
+
+**Ports are offset to avoid clashing with a local dev setup:**
+
+| Service | Compose host port | Notes |
+|---|---|---|
+| Backend / UI | `8000` | Serves the built SPA at `/` |
+| PostgreSQL | `5433` | Local Postgres keeps `5432` |
+| Qdrant | `6335` | A standalone Qdrant keeps `6333` |
+
+The backend talks to `postgres:5432` and `qdrant:6333` on the Compose network.
+
+**Notes:**
+
+- The image runs `alembic upgrade head` on startup (idempotent), then uvicorn.
+- The frontend is built inside the Docker build (multi-stage), so no host
+  `npm run build` is required for Compose.
+- `scripts/init-db.sql` creates `agent_test` and a non-superuser `compliance_app`
+  role on first boot. See §16 for switching the runtime to that role.
+- Compose reads `OPENROUTER_API_KEY` / `TAVILY_API_KEY` / `API_KEY` from the
+  host environment or a `.env` file next to `docker-compose.yml`.
+
+For development with hot-reload, use the manual setup below instead.
+
 ---
 
 ## 3. PostgreSQL
@@ -205,6 +248,23 @@ uv run pytest -k "tools"         # filter by name
 
 ## 10. Stop all services
 
+### Docker Compose (recommended)
+
+```bash
+# Stop all services (postgres, qdrant, backend)
+docker compose down
+
+# Stop and remove volumes (WARNING: deletes all data)
+docker compose down -v
+
+# Stop a specific service
+docker compose stop backend
+docker compose stop qdrant
+docker compose stop postgres
+```
+
+### Manual (development mode)
+
 ```bash
 # Stop uvicorn
 pkill -f "uvicorn.*agent_api" 2>/dev/null
@@ -213,7 +273,7 @@ pkill -f "uvicorn.*agent_api" 2>/dev/null
 pkill -f "vite" 2>/dev/null
 
 # Stop Qdrant
-docker stop qdrant && docker rm qdrant
+docker stop qdrant 2>/dev/null
 
 # Stop PostgreSQL (optional)
 sudo systemctl stop postgresql
@@ -248,8 +308,10 @@ make dev             # sync + test
 |---------|------|---------------|
 | FastAPI backend | 8000 | `uv run uvicorn src.agent_api.main:app --reload` |
 | Vite dev server | 5173 | `cd frontend && npm run dev` |
-| Qdrant | 6333 | `docker run -p 6333:6333 qdrant/qdrant` |
-| PostgreSQL | socket (`/run/postgresql`) | system service |
+| Qdrant (local) | 6333 | `docker run -p 6333:6333 qdrant/qdrant` |
+| PostgreSQL (local) | socket (`/run/postgresql`) | system service |
+| PostgreSQL (Compose) | 5433 | `docker compose up -d postgres` |
+| Qdrant (Compose) | 6335 | `docker compose up -d qdrant` |
 
 ---
 
@@ -277,21 +339,63 @@ make dev             # sync + test
 - [ ] Rotate `API_KEY` and `OPENROUTER_API_KEY`; store in a secret manager
 - [ ] Replace in-memory rate limiter with Redis-backed limiting for multi-node
 - [ ] Terminate TLS at a reverse proxy; enforce HTTPS
-- [ ] Add database migrations (Alembic) — no `init_db()` create-all
+- [x] Add database migrations (Alembic) — `alembic upgrade head`
 - [ ] Add structured logging with request IDs and secret redaction
 - [ ] Add JWT/OAuth2 end-user authentication for external users
-- [ ] Build frontend (`npm run build`) before deploying
+- [x] Build frontend in the container image (multi-stage Docker build)
 - [ ] Set `OPENROUTER_MODEL` to a verified free model
-- [ ] Configure Qdrant (Docker or managed)
-- [ ] Enable Postgres RLS on all tenant-scoped tables
-- [ ] Set up RBAC with at least 4 roles
-- [ ] Enable hash-chained audit events
-- [ ] Configure APScheduler for regulatory monitoring
-- [ ] Set up evidence storage (S3-compatible)
+- [x] Configure Qdrant (Docker Compose)
+- [x] Enable Postgres RLS on all tenant-scoped tables (`FORCE ROW LEVEL SECURITY`)
+- [ ] **Connect the app as a non-superuser role** (`compliance_app`); superusers
+      bypass RLS regardless of policies. See §16.
+- [ ] Issue per-tenant API keys (users.api_key_hash + org_id) — tenant checks are
+      enforced in the API, but the bootstrap key is cross-org by design.
+- [x] Set up RBAC with at least 4 roles
+- [x] Enable hash-chained audit events
+- [x] Configure APScheduler for regulatory monitoring
+- [ ] Move evidence storage to S3-compatible object storage
 - [ ] Run evaluation harness in CI
 - [ ] Set up monitoring and alerting
 - [ ] Document incident response procedures
 - [ ] Conduct security review of all service-backed tools
+
+---
+
+## 16. Optional: local embeddings and the non-superuser DB role
+
+### Local embeddings (sensitive documents)
+
+`sentence-transformers` is an optional extra (it pulls torch, ~2GB), used when
+you cannot send document text to a remote embedding API:
+
+```bash
+uv sync --extra local
+export COMPLIANCE_EMBEDDING_PROVIDER=local
+export COMPLIANCE_EMBEDDING_MODEL=sentence-transformers/all-MiniLM-L6-v2
+```
+
+Local vectors are 384-dim and are stored in a separate, dimension-scoped
+collection (`compliance_chunks_384`), so they never mix with 2048-dim
+OpenRouter vectors. Switching providers triggers re-indexing of stored
+versions via the scheduler.
+
+### Switching runtime to `compliance_app` (enforces RLS)
+
+RLS is bypassed for superusers. To make policies effective:
+
+1. Ensure the role exists (Compose does this on first boot):
+   `psql -U postgres -c "\du compliance_app"`.
+2. Run migrations as the owner (`postgres`).
+3. Point the **runtime** connection at the app role:
+   ```
+   DATABASE_URL=postgresql+asyncpg://compliance_app:compliance-app-dev@localhost:5433/agent_dev
+   ```
+4. The API sets the tenant context per request
+   (`set_config('app.current_org_id', ..., true)`), so queries only see the
+   authenticated principal's organization. Requests without a tenant context
+   fail closed (zero rows).
+
+Change the default app password before any shared deployment.
 
 ---
 

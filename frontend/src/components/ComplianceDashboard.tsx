@@ -12,6 +12,12 @@ import {
   listApprovals,
   decideApproval,
   verifyAudit,
+  listRegulatorySources,
+  createRegulatorySource,
+  ingestRegulation,
+  listRegulationVersions,
+  listReviewQueue,
+  decideObligation,
   type Jurisdiction,
   type Org,
   type Entity,
@@ -20,10 +26,22 @@ import {
   type Task,
   type Approval,
   type WorkflowResult,
+  type RegulationSource,
+  type RegulationVersion,
+  type IngestResult,
+  type Obligation,
 } from "../api";
 import { getApiKey } from "../api";
 
-type Tab = "dashboard" | "licenses" | "deadlines" | "tasks" | "approvals" | "audit";
+type Tab =
+  | "dashboard"
+  | "licenses"
+  | "deadlines"
+  | "tasks"
+  | "approvals"
+  | "regulations"
+  | "review"
+  | "audit";
 
 export function ComplianceDashboard() {
   const [tab, setTab] = useState<Tab>("dashboard");
@@ -49,6 +67,26 @@ export function ComplianceDashboard() {
     expires_on: "",
   });
   const [decisionRationale, setDecisionRationale] = useState("");
+
+  // Phase 2 — regulatory monitoring
+  const [sources, setSources] = useState<RegulationSource[]>([]);
+  const [versions, setVersions] = useState<RegulationVersion[]>([]);
+  const [versionsCitation, setVersionsCitation] = useState("");
+  const [reviewQueue, setReviewQueue] = useState<Obligation[]>([]);
+  const [reviewRationale, setReviewRationale] = useState<Record<string, string>>({});
+  const [ingestResult, setIngestResult] = useState<IngestResult | null>(null);
+  const [sourceForm, setSourceForm] = useState({
+    jurisdiction_code: "US-CA",
+    name: "",
+    url: "",
+  });
+  const [ingestForm, setIngestForm] = useState({
+    jurisdiction_code: "US-CA",
+    source_url: "",
+    citation: "",
+    title: "",
+    publisher: "",
+  });
 
   const apiKey = getApiKey();
 
@@ -113,6 +151,120 @@ export function ComplianceDashboard() {
       setApprovals(a);
     } catch (e) {
       setError(e instanceof Error ? e.message : "failed to load approvals");
+    }
+  }
+
+  async function loadSources() {
+    if (!apiKey) return;
+    try {
+      setSources(await listRegulatorySources(apiKey));
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "failed to load sources");
+    }
+  }
+
+  async function loadReviewQueue() {
+    if (!apiKey) return;
+    try {
+      setReviewQueue(await listReviewQueue(apiKey));
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "failed to load review queue");
+    }
+  }
+
+  async function loadVersions(citation: string) {
+    if (!apiKey || !citation.trim()) return;
+    try {
+      setVersions(await listRegulationVersions(citation.trim(), apiKey));
+      setVersionsCitation(citation.trim());
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "failed to load versions");
+    }
+  }
+
+  /** Poll a citation's versions until indexing settles (or we give up). */
+  async function pollVersions(citation: string, attempts = 12) {
+    if (!apiKey) return;
+    for (let i = 0; i < attempts; i++) {
+      await new Promise((r) => setTimeout(r, 8000));
+      try {
+        const v = await listRegulationVersions(citation, apiKey);
+        setVersions(v);
+        setVersionsCitation(citation);
+        if (v.every((x) => x.index_status !== "PENDING")) return;
+      } catch {
+        return;
+      }
+    }
+  }
+
+  async function handleCreateSource() {
+    if (!apiKey || !sourceForm.name.trim() || !sourceForm.url.trim()) return;
+    setLoading(true);
+    setError(null);
+    try {
+      await createRegulatorySource(
+        {
+          jurisdiction_code: sourceForm.jurisdiction_code,
+          name: sourceForm.name.trim(),
+          url: sourceForm.url.trim(),
+        },
+        apiKey,
+      );
+      setSourceForm({ jurisdiction_code: sourceForm.jurisdiction_code, name: "", url: "" });
+      await loadSources();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "failed to create source");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function handleIngest() {
+    if (!apiKey || !ingestForm.citation.trim() || !ingestForm.source_url.trim()) return;
+    setLoading(true);
+    setError(null);
+    setIngestResult(null);
+    try {
+      const result = await ingestRegulation(
+        {
+          jurisdiction_code: ingestForm.jurisdiction_code,
+          source_url: ingestForm.source_url.trim(),
+          citation: ingestForm.citation.trim(),
+          title: ingestForm.title.trim() || ingestForm.citation.trim(),
+          publisher: ingestForm.publisher.trim() || undefined,
+        },
+        apiKey,
+      );
+      setIngestResult(result);
+      await loadVersions(ingestForm.citation);
+      // Indexing runs in the background; watch it settle.
+      if (result.index_status === "PENDING") {
+        void pollVersions(ingestForm.citation);
+      }
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "failed to ingest regulation");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function handleDecideObligation(id: string, decision: "APPROVED" | "REJECTED") {
+    if (!apiKey) return;
+    setLoading(true);
+    setError(null);
+    try {
+      await decideObligation(id, decision, reviewRationale[id] ?? "", apiKey);
+      setReviewQueue((prev) => prev.filter((o) => o.id !== id));
+      setReviewRationale((prev) => {
+        const next = { ...prev };
+        delete next[id];
+        return next;
+      });
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "failed to record decision");
+    } finally {
+      setLoading(false);
     }
   }
 
@@ -207,6 +359,8 @@ export function ComplianceDashboard() {
     { id: "deadlines", label: "Deadlines" },
     { id: "tasks", label: "Tasks" },
     { id: "approvals", label: "Approvals" },
+    { id: "regulations", label: "Regulations" },
+    { id: "review", label: "Review Queue" },
     { id: "audit", label: "Audit" },
   ];
 
@@ -224,6 +378,8 @@ export function ComplianceDashboard() {
               if (t.id === "deadlines") loadDeadlines();
               if (t.id === "tasks") loadTasks();
               if (t.id === "approvals") loadApprovals();
+              if (t.id === "regulations") loadSources();
+              if (t.id === "review") loadReviewQueue();
             }}
           >
             {t.label}
@@ -532,6 +688,231 @@ export function ComplianceDashboard() {
             </div>
           ) : (
             <div className="empty-state">No pending approvals.</div>
+          )}
+        </div>
+      )}
+
+      {/* Regulations tab */}
+      {tab === "regulations" && (
+        <div className="comp-panel">
+          <h2>Regulatory Sources</h2>
+          <p className="hint">
+            Sources are fetched on a schedule. Ingesting stores an immutable, versioned
+            copy of the text and indexes it for citation-backed retrieval.
+          </p>
+
+          <div className="comp-section">
+            <h3>Add a source</h3>
+            <div className="comp-form-row">
+              <select
+                value={sourceForm.jurisdiction_code}
+                onChange={(e) =>
+                  setSourceForm({ ...sourceForm, jurisdiction_code: e.target.value })
+                }
+              >
+                {jurisdictions.map((j) => (
+                  <option key={j.id} value={j.code}>{j.code} — {j.name}</option>
+                ))}
+              </select>
+              <input
+                placeholder="Source name (e.g. CA DFPI MTA)"
+                value={sourceForm.name}
+                onChange={(e) => setSourceForm({ ...sourceForm, name: e.target.value })}
+              />
+              <input
+                placeholder="https://regulator.example/statute"
+                value={sourceForm.url}
+                onChange={(e) => setSourceForm({ ...sourceForm, url: e.target.value })}
+              />
+              <button className="btn-primary" onClick={handleCreateSource} disabled={loading}>
+                Add source
+              </button>
+            </div>
+          </div>
+
+          <div className="comp-section">
+            <h3>Monitored sources ({sources.length})</h3>
+            {sources.length > 0 ? (
+              <table className="comp-table">
+                <thead>
+                  <tr><th>Name</th><th>URL</th><th>Last fetched</th><th>Status</th></tr>
+                </thead>
+                <tbody>
+                  {sources.map((s) => (
+                    <tr key={s.id}>
+                      <td>{s.name}</td>
+                      <td className="mono truncate">{s.url}</td>
+                      <td>{s.last_fetched_at ? new Date(s.last_fetched_at).toLocaleString() : "never"}</td>
+                      <td>{s.active ? "active" : "paused"}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            ) : (
+              <div className="empty-state">No sources registered yet.</div>
+            )}
+          </div>
+
+          <div className="comp-section">
+            <h3>Ingest a regulation</h3>
+            <div className="comp-form-grid">
+              <input
+                placeholder="Citation (e.g. Cal. Fin. Code § 2030)"
+                value={ingestForm.citation}
+                onChange={(e) => setIngestForm({ ...ingestForm, citation: e.target.value })}
+              />
+              <input
+                placeholder="Title"
+                value={ingestForm.title}
+                onChange={(e) => setIngestForm({ ...ingestForm, title: e.target.value })}
+              />
+              <input
+                placeholder="https://regulator.example/statute.pdf"
+                value={ingestForm.source_url}
+                onChange={(e) => setIngestForm({ ...ingestForm, source_url: e.target.value })}
+              />
+              <input
+                placeholder="Publisher (optional)"
+                value={ingestForm.publisher}
+                onChange={(e) => setIngestForm({ ...ingestForm, publisher: e.target.value })}
+              />
+              <select
+                value={ingestForm.jurisdiction_code}
+                onChange={(e) =>
+                  setIngestForm({ ...ingestForm, jurisdiction_code: e.target.value })
+                }
+              >
+                {jurisdictions.map((j) => (
+                  <option key={j.id} value={j.code}>{j.code} — {j.name}</option>
+                ))}
+              </select>
+              <button className="btn-primary" onClick={handleIngest} disabled={loading}>
+                {loading ? "Ingesting…" : "Ingest & index"}
+              </button>
+            </div>
+
+            {ingestResult && (
+              <div className="ingest-result">
+                <div>
+                  <strong>{ingestResult.changed ? "New version stored" : "No change detected"}</strong>
+                  {ingestResult.regulation_version_id && (
+                    <span className="mono"> — v{ingestResult.version_no}</span>
+                  )}
+                </div>
+                <div className="hint">{ingestResult.change_summary}</div>
+                <div>
+                  Index: <span className={`status-badge ${ingestResult.index_status.toLowerCase()}`}>
+                    {ingestResult.index_status}
+                  </span>
+                  {ingestResult.chunks_created > 0 && (
+                    <span className="hint"> · {ingestResult.chunks_created} chunks</span>
+                  )}
+                </div>
+              </div>
+            )}
+          </div>
+
+          <div className="comp-section">
+            <h3>Versions</h3>
+            <div className="comp-form-row">
+              <input
+                placeholder="Citation"
+                value={versionsCitation}
+                onChange={(e) => setVersionsCitation(e.target.value)}
+              />
+              <button onClick={() => loadVersions(versionsCitation)} disabled={!apiKey}>
+                Look up
+              </button>
+            </div>
+            {versions.length > 0 ? (
+              <table className="comp-table">
+                <thead>
+                  <tr>
+                    <th>Ver</th><th>Title</th><th>SHA-256</th><th>Index</th><th>Effective</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {versions.map((v) => (
+                    <tr key={v.id}>
+                      <td>v{v.version_no}</td>
+                      <td>{v.title}</td>
+                      <td className="mono truncate">{v.content_sha256.slice(0, 12)}</td>
+                      <td>
+                        <span className={`status-badge ${v.index_status.toLowerCase()}`}>
+                          {v.index_status}
+                        </span>
+                        {v.index_error && (
+                          <div className="hint error-text">{v.index_error.slice(0, 120)}</div>
+                        )}
+                      </td>
+                      <td>{v.effective_date ?? "—"}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            ) : (
+              <div className="empty-state">No versions loaded.</div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Review Queue tab */}
+      {tab === "review" && (
+        <div className="comp-panel">
+          <h2>Obligation Review Queue</h2>
+          <p className="hint">
+            Proposed obligations start as <em>potentially relevant</em>. Only a human
+            approval promotes one to <em>confirmed</em>; rejection records it as not applicable.
+          </p>
+          {reviewQueue.length > 0 ? (
+            <div>
+              {reviewQueue.map((o) => (
+                <div key={o.id} className="approval-card">
+                  <div className="approval-header">
+                    <span className="approval-subject">{o.citation || "Uncited"}</span>
+                    <span className="status-badge potentially_relevant">
+                      {o.applicability.replace(/_/g, " ").toLowerCase()}
+                    </span>
+                  </div>
+                  <div className="approval-body">
+                    <p>{o.normalized_text}</p>
+                    {o.citation_chunk_ids.length > 0 && (
+                      <div className="hint mono">
+                        cites {o.citation_chunk_ids.length} chunk
+                        {o.citation_chunk_ids.length === 1 ? "" : "s"}
+                      </div>
+                    )}
+                    <textarea
+                      placeholder="Rationale (recorded with the decision)"
+                      value={reviewRationale[o.id] ?? ""}
+                      onChange={(e) =>
+                        setReviewRationale({ ...reviewRationale, [o.id]: e.target.value })
+                      }
+                      rows={2}
+                    />
+                    <div className="approval-actions">
+                      <button
+                        className="btn-primary"
+                        onClick={() => handleDecideObligation(o.id, "APPROVED")}
+                        disabled={loading}
+                      >
+                        Confirm obligation
+                      </button>
+                      <button
+                        className="btn-danger"
+                        onClick={() => handleDecideObligation(o.id, "REJECTED")}
+                        disabled={loading}
+                      >
+                        Not applicable
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div className="empty-state">Nothing to review.</div>
           )}
         </div>
       )}

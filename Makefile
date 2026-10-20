@@ -1,4 +1,4 @@
-.PHONY: sync lint test run dev frontend-dev frontend-build
+.PHONY: sync lint test run dev frontend-dev frontend-build docker-up docker-down docker-logs
 
 sync: ## Install production and dev dependencies with uv
 	uv sync
@@ -17,5 +17,14 @@ frontend-dev: ## Run Vite dev server with hot-reload (proxies to backend on :800
 
 frontend-build: ## Build the React/Vite frontend into frontend/dist
 	cd frontend && npm run build
+
+docker-up: ## Start all services (postgres, qdrant, backend) via Docker Compose
+	docker compose up -d
+
+docker-down: ## Stop all services via Docker Compose
+	docker compose down
+
+docker-logs: ## View backend logs
+	docker compose logs -f backend
 
 dev: sync test ## Set up environment and run tests (developer onboarding)

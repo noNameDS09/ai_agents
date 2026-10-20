@@ -54,20 +54,41 @@ Roles: `admin`, `compliance_officer`, `reviewer`, `auditor`, `viewer`
 
 | Method | Path | Role | Description |
 |--------|------|------|-------------|
-| `POST` | `/regulations/ingest` | compliance_officer | Ingest regulatory source |
-| `GET` | `/regulations/{citation}/versions` | any | List versions |
+| `GET` | `/sources` | any | List monitored regulatory sources |
+| `POST` | `/sources` | compliance_officer | Register a source to monitor |
+| `POST` | `/regulations/ingest` | compliance_officer | Fetch + store a version, index in background (`202`) |
+| `POST` | `/regulations/versions/{id}/reindex` | compliance_officer | Re-chunk/re-embed a version (`202`) |
+| `GET` | `/regulations/{citation}/versions` | any | List versions with `index_status` |
 | `GET` | `/regulations/{citation}/versions/{version_no}` | any | Get specific version |
-| `GET` | `/regulations/{citation}/diff/{v1}/{v2}` | any | Diff two versions |
+
+**Ingest semantics**
+
+- Versioning is per **citation**: unchanged content returns the existing
+  `regulation_version_id` with `changed=false`; changed content creates a new
+  version that supersedes the previous one.
+- `POST /regulations/ingest` returns immediately with `index_status="PENDING"`.
+  Indexing (chunk → embed → Qdrant) runs in a background task because free
+  embedding tiers can take ~60s. Poll the versions endpoint until `INDEXED` or
+  `FAILED`.
+- A `FAILED` version keeps its text (it is still a valid legal record) and is
+  retried by the scheduler every 15 minutes, or on demand via `/reindex`.
+- Embedding spaces are isolated by dimension (`compliance_chunks_2048` vs
+  `compliance_chunks_384`); a provider change triggers re-indexing rather than
+  mixing incompatible vectors.
 
 ### Obligations
 
 | Method | Path | Role | Description |
 |--------|------|------|-------------|
-| `GET` | `/obligations` | any | List obligations (filter by org, status, applicability) |
-| `GET` | `/obligations/{id}` | any | Get obligation with citations |
-| `POST` | `/obligations/{id}/approve` | reviewer | Approve obligation (promotes to CONFIRMED) |
-| `POST` | `/obligations/{id}/reject` | reviewer | Reject obligation |
-| `GET` | `/obligations/review-queue` | reviewer | List pending review items |
+| `GET` | `/obligations` | any | List obligations (tenant-bound callers always scoped to their org) |
+| `POST` | `/obligations/map` | compliance_officer | Run the Obligation Mapping agent (`202`) |
+| `POST` | `/obligations/{id}/decide` | reviewer | Approve (`CONFIRMED`) or reject (`NOT_APPLICABLE`) |
+| `GET` | `/obligations/review-queue` | reviewer | List `POTENTIALLY_RELEVANT` / `DRAFT` items |
+
+Every proposed obligation carries at least one resolvable chunk citation. The
+agent resolves LLM output deterministically (explicit index → section number
+match → lexical overlap); obligations that cannot be cited are dropped and
+counted in `skipped_uncited` rather than stored as unsupported claims.
 
 ### Controls
 
